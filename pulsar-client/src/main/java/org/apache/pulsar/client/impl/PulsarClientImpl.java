@@ -146,6 +146,8 @@ public class PulsarClientImpl implements PulsarClient {
                         }
                     });
 
+    private final Map<InetSocketAddress, InetSocketAddress> physicalAddressCache = new ConcurrentHashMap<>();
+
     private final Clock clientClock;
 
     @Getter
@@ -949,7 +951,10 @@ public class PulsarClientImpl implements PulsarClient {
     public CompletableFuture<ClientCnx> getConnection(final String topic, int randomKeyForSelectConnection) {
         TopicName topicName = TopicName.get(topic);
         return lookup.getBroker(topicName)
-                .thenCompose(pair -> getConnection(pair.getLeft(), pair.getRight(), randomKeyForSelectConnection));
+                .thenCompose(pair -> {
+                    physicalAddressCache.put(pair.getLeft(), pair.getRight());
+                    return getConnection(pair.getLeft(), pair.getRight(), randomKeyForSelectConnection);
+                });
     }
 
     /**
@@ -984,6 +989,13 @@ public class PulsarClientImpl implements PulsarClient {
         }
         InetSocketAddress address = lookup.resolveHost();
         return getConnection(address, address, cnxPool.genRandomKeyToSelectCon());
+    }
+
+    public CompletableFuture<ClientCnx> getConnection(final InetSocketAddress logicalAddress,
+                                                      final int randomKeyForSelectConnection) {
+        InetSocketAddress physicalAddress = physicalAddressCache.get(logicalAddress);
+        return getConnection(logicalAddress, physicalAddress != null ? physicalAddress : logicalAddress,
+                randomKeyForSelectConnection);
     }
 
     public CompletableFuture<ClientCnx> getConnection(final InetSocketAddress logicalAddress,
