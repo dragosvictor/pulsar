@@ -94,10 +94,10 @@ public class ConnectionHandler {
         try {
             CompletableFuture<ClientCnx> cnxFuture;
             if (hostURI.isPresent()) {
-                InetSocketAddress address = InetSocketAddress.createUnresolved(
+                InetSocketAddress logicalAddress = InetSocketAddress.createUnresolved(
                         hostURI.get().getHost(),
                         hostURI.get().getPort());
-                cnxFuture = state.client.getConnection(address, address, randomKeyForSelectConnection);
+                cnxFuture = state.client.getConnection(logicalAddress, logicalAddress, randomKeyForSelectConnection);
             } else if (state.redirectedClusterURI != null) {
                 if (state.topic == null) {
                     InetSocketAddress address = InetSocketAddress.createUnresolved(state.redirectedClusterURI.getHost(),
