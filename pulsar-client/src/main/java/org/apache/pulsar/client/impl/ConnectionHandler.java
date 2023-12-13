@@ -47,6 +47,8 @@ public class ConnectionHandler {
     private final AtomicBoolean duringConnect = new AtomicBoolean(false);
     protected final int randomKeyForSelectConnection;
 
+    private boolean useProxy = false;
+
     interface Connection {
 
         /**
@@ -96,7 +98,12 @@ public class ConnectionHandler {
             if (hostURI.isPresent()) {
                 URI uri = hostURI.get();
                 InetSocketAddress logicalAddress = InetSocketAddress.createUnresolved(uri.getHost(), uri.getPort());
-                cnxFuture = state.client.getConnection(logicalAddress, randomKeyForSelectConnection);
+                if (useProxy) {
+                    cnxFuture = state.client.getConnection(logicalAddress, randomKeyForSelectConnection);
+                } else {
+                    cnxFuture = state.client.getConnection(logicalAddress, logicalAddress,
+                            randomKeyForSelectConnection);
+                }
             } else if (state.redirectedClusterURI != null) {
                 if (state.topic == null) {
                     InetSocketAddress address = InetSocketAddress.createUnresolved(state.redirectedClusterURI.getHost(),
