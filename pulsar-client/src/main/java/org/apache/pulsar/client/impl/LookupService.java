@@ -21,7 +21,6 @@ package org.apache.pulsar.client.impl;
 import java.net.InetSocketAddress;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.common.api.proto.CommandGetTopicsOfNamespace.Mode;
 import org.apache.pulsar.common.lookup.GetTopicsResult;
@@ -56,7 +55,7 @@ public interface LookupService extends AutoCloseable {
      *            topic-name
      * @return a pair of addresses, representing the logical and physical address of the broker that serves given topic
      */
-    CompletableFuture<Pair<InetSocketAddress, InetSocketAddress>> getBroker(TopicName topicName);
+    CompletableFuture<LookupTopicResult> getBroker(TopicName topicName);
 
     /**
      * Returns {@link PartitionedTopicMetadata} for a given topic.

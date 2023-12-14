@@ -18,6 +18,10 @@
  */
 package org.apache.pulsar.client.api;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -30,9 +34,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import lombok.Cleanup;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pulsar.broker.auth.MockedPulsarServiceBaseTest;
@@ -53,9 +54,6 @@ import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
 
 @Test(groups = "broker-api")
 public class PulsarMultiListenersWithInternalListenerNameTest extends MockedPulsarServiceBaseTest {
@@ -140,21 +138,21 @@ public class PulsarMultiListenersWithInternalListenerNameTest extends MockedPuls
         LookupService lookupService = useHttp ? new HttpLookupService(conf, eventExecutors) :
                 new BinaryProtoLookupService((PulsarClientImpl) this.pulsarClient,
                 lookupUrl.toString(), "internal", false, this.executorService);
+        TopicName topicName = TopicName.get("persistent://public/default/test");
+
         // test request 1
         {
-            CompletableFuture<Pair<InetSocketAddress, InetSocketAddress>> future =
-                    lookupService.getBroker(TopicName.get("persistent://public/default/test"));
-            Pair<InetSocketAddress, InetSocketAddress> result = future.get(10, TimeUnit.SECONDS);
-            Assert.assertEquals(result.getKey(), brokerAddress);
-            Assert.assertEquals(result.getValue(), brokerAddress);
+            var result = lookupService.getBroker(topicName).get(10, TimeUnit.SECONDS);
+            Assert.assertEquals(result.getLogicalAddress(), brokerAddress);
+            Assert.assertEquals(result.getPhysicalAddress(), brokerAddress);
+            Assert.assertEquals(result.isUseProxy(), false);
         }
         // test request 2
         {
-            CompletableFuture<Pair<InetSocketAddress, InetSocketAddress>> future =
-                    lookupService.getBroker(TopicName.get("persistent://public/default/test"));
-            Pair<InetSocketAddress, InetSocketAddress> result = future.get(10, TimeUnit.SECONDS);
-            Assert.assertEquals(result.getKey(), brokerAddress);
-            Assert.assertEquals(result.getValue(), brokerAddress);
+            var result = lookupService.getBroker(topicName).get(10, TimeUnit.SECONDS);
+            Assert.assertEquals(result.getLogicalAddress(), brokerAddress);
+            Assert.assertEquals(result.getPhysicalAddress(), brokerAddress);
+            Assert.assertEquals(result.isUseProxy(), false);
         }
     }
 
@@ -187,12 +185,11 @@ public class PulsarMultiListenersWithInternalListenerNameTest extends MockedPuls
         doReturn(CompletableFuture.completedFuture(optional), CompletableFuture.completedFuture(optional2))
                 .when(namespaceService).getBrokerServiceUrlAsync(any(), any());
 
-        CompletableFuture<Pair<InetSocketAddress, InetSocketAddress>> future =
-                lookupService.getBroker(TopicName.get("persistent://public/default/test"));
-
-        Pair<InetSocketAddress, InetSocketAddress> result = future.get(10, TimeUnit.SECONDS);
-        Assert.assertEquals(result.getKey(), address);
-        Assert.assertEquals(result.getValue(), address);
+        var result =
+                lookupService.getBroker(TopicName.get("persistent://public/default/test")).get(10, TimeUnit.SECONDS);
+        Assert.assertEquals(result.getLogicalAddress(), address);
+        Assert.assertEquals(result.getPhysicalAddress(), address);
+        Assert.assertEquals(result.isUseProxy(), false);
     }
 
     @AfterMethod(alwaysRun = true)

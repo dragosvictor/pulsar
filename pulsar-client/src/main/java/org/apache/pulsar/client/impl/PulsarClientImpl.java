@@ -951,10 +951,8 @@ public class PulsarClientImpl implements PulsarClient {
     public CompletableFuture<ClientCnx> getConnection(final String topic, int randomKeyForSelectConnection) {
         TopicName topicName = TopicName.get(topic);
         return lookup.getBroker(topicName)
-                .thenCompose(pair -> {
-                    physicalAddressCache.put(pair.getLeft(), pair.getRight());
-                    return getConnection(pair.getLeft(), pair.getRight(), randomKeyForSelectConnection);
-                });
+                .thenCompose(lookupResult -> getConnection(lookupResult.getLogicalAddress(),
+                        lookupResult.getPhysicalAddress(), randomKeyForSelectConnection));
     }
 
     /**
@@ -968,7 +966,8 @@ public class PulsarClientImpl implements PulsarClient {
     public CompletableFuture<ClientCnx> getConnection(final String topic, final String url) {
         TopicName topicName = TopicName.get(topic);
         return getLookup(url).getBroker(topicName)
-                .thenCompose(pair -> getConnection(pair.getLeft(), pair.getRight(), cnxPool.genRandomKeyToSelectCon()));
+                .thenCompose(lookupResult -> getConnection(lookupResult.getLogicalAddress(),
+                        lookupResult.getPhysicalAddress(), cnxPool.genRandomKeyToSelectCon()));
     }
 
     public LookupService getLookup(String serviceUrl) {
