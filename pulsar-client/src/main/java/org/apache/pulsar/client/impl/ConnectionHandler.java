@@ -97,12 +97,11 @@ public class ConnectionHandler {
             CompletableFuture<ClientCnx> cnxFuture;
             if (hostURI.isPresent()) {
                 URI uri = hostURI.get();
-                InetSocketAddress logicalAddress = InetSocketAddress.createUnresolved(uri.getHost(), uri.getPort());
+                InetSocketAddress address = InetSocketAddress.createUnresolved(uri.getHost(), uri.getPort());
                 if (useProxy) {
-                    cnxFuture = state.client.getConnection(logicalAddress, randomKeyForSelectConnection);
+                    cnxFuture = state.client.getProxiedConnection(address, randomKeyForSelectConnection);
                 } else {
-                    cnxFuture = state.client.getConnection(logicalAddress, logicalAddress,
-                            randomKeyForSelectConnection);
+                    cnxFuture = state.client.getConnection(address, address, randomKeyForSelectConnection);
                 }
             } else if (state.redirectedClusterURI != null) {
                 if (state.topic == null) {
@@ -118,7 +117,12 @@ public class ConnectionHandler {
             } else if (state.topic == null) {
                 cnxFuture = state.client.getConnectionToServiceUrl();
             } else {
-                cnxFuture = state.client.getConnection(state.topic, randomKeyForSelectConnection);
+                cnxFuture = state.client.lookupTopic(state.topic).thenCompose(lookupTopicResult -> {
+                    // Cache proxy information
+                    useProxy = lookupTopicResult.isUseProxy();
+                    return state.client.getConnection(lookupTopicResult.getLogicalAddress(),
+                            lookupTopicResult.getPhysicalAddress(), randomKeyForSelectConnection);
+                });
             }
             cnxFuture.thenCompose(cnx -> connection.connectionOpened(cnx))
                     .thenAccept(__ -> duringConnect.set(false))

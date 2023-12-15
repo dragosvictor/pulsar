@@ -146,8 +146,6 @@ public class PulsarClientImpl implements PulsarClient {
                         }
                     });
 
-    private final Map<InetSocketAddress, InetSocketAddress> physicalAddressCache = new ConcurrentHashMap<>();
-
     private final Clock clientClock;
 
     @Getter
@@ -948,11 +946,14 @@ public class PulsarClientImpl implements PulsarClient {
         conf.setTlsTrustStorePassword(tlsTrustStorePassword);
     }
 
-    public CompletableFuture<ClientCnx> getConnection(final String topic, int randomKeyForSelectConnection) {
+    public CompletableFuture<LookupTopicResult> lookupTopic(final String topic) {
         TopicName topicName = TopicName.get(topic);
-        return lookup.getBroker(topicName)
-                .thenCompose(lookupResult -> getConnection(lookupResult.getLogicalAddress(),
-                        lookupResult.getPhysicalAddress(), randomKeyForSelectConnection));
+        return lookup.getBroker(topicName);
+    }
+
+    public CompletableFuture<ClientCnx> getConnection(final String topic, int randomKeyForSelectConnection) {
+        return lookupTopic(topic).thenCompose(lookupResult -> getConnection(lookupResult.getLogicalAddress(),
+                lookupResult.getPhysicalAddress(), randomKeyForSelectConnection));
     }
 
     /**
@@ -990,11 +991,13 @@ public class PulsarClientImpl implements PulsarClient {
         return getConnection(address, address, cnxPool.genRandomKeyToSelectCon());
     }
 
-    public CompletableFuture<ClientCnx> getConnection(final InetSocketAddress logicalAddress,
-                                                      final int randomKeyForSelectConnection) {
-        InetSocketAddress physicalAddress = physicalAddressCache.get(logicalAddress);
-        return getConnection(logicalAddress, physicalAddress != null ? physicalAddress : logicalAddress,
-                randomKeyForSelectConnection);
+    public CompletableFuture<ClientCnx> getProxiedConnection(final InetSocketAddress logicalAddress,
+                                                             final int randomKeyForSelectConnection) {
+        if (!(lookup instanceof BinaryProtoLookupService)) {
+            return FutureUtil.failedFuture(new PulsarClientException.InvalidServiceURL(
+                    "Cannot proxy connection through HTTP service URL", null));
+        }
+        return getConnection(logicalAddress, lookup.resolveHost(), randomKeyForSelectConnection);
     }
 
     public CompletableFuture<ClientCnx> getConnection(final InetSocketAddress logicalAddress,
