@@ -21,6 +21,7 @@ package org.apache.pulsar.client.impl;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timer;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pulsar.client.impl.PatternMultiTopicsConsumerImpl.TopicsChangedListener;
 import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.apache.pulsar.common.api.proto.BaseCommand;
@@ -64,7 +65,8 @@ public class TopicListWatcherTest {
         when(client.timer()).thenReturn(timer);
         String topic = "persistent://tenant/ns/topic\\d+";
         when(client.getConnection(topic)).thenReturn(clientCnxFuture);
-        when(client.getConnection(topic, 0)).thenReturn(clientCnxFuture);
+        when(client.getConnection(topic, 0)).thenReturn(
+                CompletableFuture.completedFuture(Pair.of(clientCnxFuture, false)));
         when(client.getConnection(any(), any(), anyInt())).thenReturn(clientCnxFuture);
         when(connectionPool.getConnection(any(), any(), anyInt())).thenReturn(clientCnxFuture);
         watcherFuture = new CompletableFuture<>();

@@ -117,12 +117,11 @@ public class ConnectionHandler {
             } else if (state.topic == null) {
                 cnxFuture = state.client.getConnectionToServiceUrl();
             } else {
-                cnxFuture = state.client.lookupTopic(state.topic).thenCompose(lookupTopicResult -> {
-                    // Cache proxy information
-                    useProxy = lookupTopicResult.isUseProxy();
-                    return state.client.getConnection(lookupTopicResult.getLogicalAddress(),
-                            lookupTopicResult.getPhysicalAddress(), randomKeyForSelectConnection);
-                });
+                cnxFuture = state.client.getConnection(state.topic, randomKeyForSelectConnection).thenCompose(
+                        connectionResult -> {
+                            useProxy = connectionResult.getRight();
+                            return connectionResult.getLeft();
+                        });
             }
             cnxFuture.thenCompose(cnx -> connection.connectionOpened(cnx))
                     .thenAccept(__ -> duringConnect.set(false))
