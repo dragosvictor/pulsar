@@ -30,7 +30,7 @@ public class PulsarContainer extends GenericContainer<PulsarContainer> {
     public static final int PULSAR_PORT = 6650;
     public static final int BROKER_HTTP_PORT = 8080;
     public static final String DEFAULT_IMAGE_NAME = System.getenv().getOrDefault("PULSAR_TEST_IMAGE_NAME",
-            "apachepulsar/pulsar-test-latest-version:latest");
+            "apachepulsar/pulsar-all:3.2.0-SNAPSHOT-pip-307-proxy-0");
 
     public PulsarContainer() {
         this(DEFAULT_IMAGE_NAME);
