@@ -81,6 +81,7 @@ public class BinaryProtoLookupServiceTest {
                 .createUnresolved("broker2.pulsar.apache.org" ,6650));
         assertEquals(lookupResult.getPhysicalAddress(), InetSocketAddress
                 .createUnresolved("broker2.pulsar.apache.org" ,6650));
+        assertEquals(lookupResult.isUseProxy(), false);
     }
 
     @Test(invocationTimeOut = 3000)
@@ -94,6 +95,7 @@ public class BinaryProtoLookupServiceTest {
                 .createUnresolved("broker2.pulsar.apache.org" ,6650));
         assertEquals(lookupResult.getPhysicalAddress(), InetSocketAddress
                 .createUnresolved("broker2.pulsar.apache.org" ,6650));
+        assertEquals(lookupResult.isUseProxy(), false);
     }
 
     @Test(invocationTimeOut = 3000)
