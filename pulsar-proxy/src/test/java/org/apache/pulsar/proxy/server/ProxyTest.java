@@ -34,6 +34,7 @@ import lombok.Cleanup;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
+import lombok.val;
 import org.apache.avro.reflect.Nullable;
 import org.apache.pulsar.PulsarVersion;
 import org.apache.pulsar.broker.auth.MockedPulsarServiceBaseTest;
@@ -53,6 +54,8 @@ import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.apache.pulsar.common.api.proto.CommandActiveConsumerChange;
 import org.apache.pulsar.common.api.proto.ProtocolVersion;
 import org.apache.pulsar.common.configuration.PulsarConfigurationLoader;
+import org.apache.pulsar.common.naming.NamespaceName;
+import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.TenantInfoImpl;
 import org.apache.pulsar.common.policies.data.TopicType;
@@ -89,6 +92,7 @@ public class ProxyTest extends MockedPulsarServiceBaseTest {
     @BeforeClass
     protected void setup() throws Exception {
         internalSetup();
+        setupDefaultTenantAndNamespace();
 
         initializeProxyConfig();
 
@@ -162,6 +166,36 @@ public class ProxyTest extends MockedPulsarServiceBaseTest {
 
         Message<byte[]> msg = consumer.receive(0, TimeUnit.SECONDS);
         checkArgument(msg == null);
+    }
+
+    @Test
+    public void testProducerConsumerTopicUnload() throws Exception {
+        val tenant = "public";
+        val ns = "default";
+        var namespaceName = NamespaceName.get(tenant, ns);
+        var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName, "topicA");
+
+        @Cleanup
+        PulsarClient client = PulsarClient.builder().serviceUrl(proxyService.getServiceUrl()).build();
+
+        @Cleanup
+        var producer = client.newProducer().topic(topicName.toString()).create();
+
+        @Cleanup
+        var consumer = client.newConsumer().topic(topicName.toString()).subscriptionName("my-subscription").subscribe();
+
+        for (int i = 0; i < 10; i++) {
+            producer.send("test".getBytes());
+        }
+
+        var bundleRange = admin.lookups().getBundleRange(topicName.toString());
+        val broker = admin.lookups().lookupTopic(topicName.toString());
+        val brokers = admin.brokers().getActiveBrokers();
+
+        admin.namespaces().unloadNamespaceBundle(namespaceName.toString(), bundleRange, broker);
+
+        var bundles = admin.namespaces().getBundles(namespaceName.toString());
+        assertEquals(bundles, null);
     }
 
     @Test
