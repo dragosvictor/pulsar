@@ -40,16 +40,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.client.api.PulsarClient;
-import org.apache.pulsar.client.api.Schema;
-import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.common.policies.data.AutoFailoverPolicyData;
 import org.apache.pulsar.common.policies.data.AutoFailoverPolicyType;
 import org.apache.pulsar.common.policies.data.BundlesData;
@@ -203,58 +198,6 @@ public class ExtensibleLoadManagerTest extends TestRetrySupport {
 
         index = extractBrokerIndex(broker);
         assertEquals(index, transferToIndex);
-    }
-
-    @Test
-    public void testProxyClients() throws Exception {
-        String topicName = "persistent://" + DEFAULT_NAMESPACE + "/testProxyClients";
-        admin.topics().createNonPartitionedTopic(topicName);
-        String broker = admin.lookups().lookupTopic(topicName);
-
-        int index = extractBrokerIndex(broker);
-
-        String bundleRange = admin.lookups().getBundleRange(topicName);
-
-        var serviceUrl = pulsarCluster.getProxy().getPlainTextServiceUrl();
-
-        var pattern = Pattern.compile("Getting connections to");
-        var lookupCount = new AtomicInteger();
-        pulsarCluster.getProxy().followOutput(outputFrame -> {
-            String logMessage = outputFrame.getUtf8String();
-            if (logMessage.contains("Getting connections to")) {
-                lookupCount.incrementAndGet();
-            }
-        });
-
-        @Cleanup
-        PulsarClient client = PulsarClient.builder()
-                .serviceUrl(serviceUrl)
-                .build();
-
-        PulsarClientImpl clientImpl = (PulsarClientImpl) client;
-        var state = clientImpl.getState().get();
-
-        @Cleanup
-        var consumer = client.newConsumer()
-                .topic(topicName)
-                .subscriptionName("sub1")
-                .subscribe();
-
-        @Cleanup
-        org.apache.pulsar.client.api.Producer<String> producer = client.newProducer(Schema.STRING)
-                .topic(topicName)
-                .create();
-        producer.send("content-0");
-        producer.send("content-1");
-
-        int transferToIndex = generateRandomExcludingX(NUM_BROKERS, index);
-        assertNotEquals(transferToIndex, index);
-        String transferTo = getBrokerUrl(transferToIndex);
-        admin.namespaces().unloadNamespaceBundle(DEFAULT_NAMESPACE, bundleRange, transferTo);
-
-        assertEquals(lookupCount.get(), -1);
-
-        // Awaitility.waitAtMost(3, TimeUnit.MINUTES).until(() -> lookupCount.get() < 0);
     }
 
     @Test(timeOut = 30 * 1000)

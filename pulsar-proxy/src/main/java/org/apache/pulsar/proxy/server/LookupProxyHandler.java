@@ -140,8 +140,10 @@ public class LookupProxyHandler {
         }
 
         InetSocketAddress addr = InetSocketAddress.createUnresolved(brokerURI.getHost(), brokerURI.getPort());
-        log.info("DMISCA Getting connections to '{}' for Looking up topic '{}' with clientReq Id '{}'", addr, topic,
-                clientRequestId);
+        if (log.isDebugEnabled()) {
+            log.debug("Getting connections to '{}' for Looking up topic '{}' with clientReq Id '{}'", addr, topic,
+                    clientRequestId);
+        }
         proxyConnection.getConnectionPool().getConnection(addr).thenAccept(clientCnx -> {
             // Connected to backend broker
             long requestId = proxyConnection.newRequestId();
