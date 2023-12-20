@@ -25,10 +25,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.testng.Assert.assertTrue;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -57,18 +55,12 @@ import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.TopicType;
-import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.metadata.impl.ZKMetadataStore;
-import org.apache.pulsar.proxy.server.ProxyConfiguration;
-import org.apache.pulsar.proxy.server.ProxyService;
 import org.mockito.Mockito;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 @Slf4j
 public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
-
-    private ProxyService proxyService;
 
     @Override
     public int numberOfAdditionalBrokers() {
@@ -79,18 +71,6 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
     public void doInitConf() throws Exception {
         super.doInitConf();
         configureExtensibleLoadManager(conf);
-    }
-
-    @BeforeClass(dependsOnMethods = "setup", alwaysRun = true)
-    public void proxySetup() throws Exception {
-        var proxyConfig = initializeProxyConfig();
-        proxyService = Mockito.spy(new ProxyService(proxyConfig, new AuthenticationService(
-                PulsarConfigurationLoader.convertFrom(proxyConfig))));
-        doReturn(registerCloseable(new ZKMetadataStore(mockZooKeeper))).when(proxyService).createLocalMetadataStore();
-        doReturn(registerCloseable(new ZKMetadataStore(mockZooKeeperGlobal))).when(proxyService)
-                .createConfigurationMetadataStore();
-        proxyService.start();
-        registerCloseable(proxyService);
     }
 
     @Override
@@ -121,8 +101,25 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         return proxyConfig;
     }
 
+    private LookupService spyLookupService(PulsarClient client) throws IllegalAccessException {
+        LookupService svc = (LookupService) FieldUtils.readDeclaredField(client, "lookup", true);
+        var lookup = spy(svc);
+        FieldUtils.writeDeclaredField(client, "lookup", lookup, true);
+        return lookup;
+    }
+
     @Test(timeOut = 30_000, invocationCount = 100, skipFailedInvocations = true)
     public void testProxyProduceConsume() throws Exception {
+        var proxyConfig = initializeProxyConfig();
+
+        @Cleanup
+        var proxyService = Mockito.spy(new ProxyService(proxyConfig, new AuthenticationService(
+                PulsarConfigurationLoader.convertFrom(proxyConfig))));
+        doReturn(registerCloseable(new ZKMetadataStore(mockZooKeeper))).when(proxyService).createLocalMetadataStore();
+        doReturn(registerCloseable(new ZKMetadataStore(mockZooKeeperGlobal))).when(proxyService)
+                .createConfigurationMetadataStore();
+        proxyService.start();
+
         var timeoutMs = 15_000;
         var namespaceName = NamespaceName.get("public", "default");
         var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName,
@@ -200,22 +197,15 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
 
         cdl.countDown();
 
-        var futures = List.of(producerFuture, consumerFuture, unloadFuture);
-        FutureUtil.waitForAllAndSupportCancel(futures).get();
-        assertTrue(futures.stream().allMatch(CompletableFuture::isDone));
-        assertTrue(futures.stream().noneMatch(CompletableFuture::isCompletedExceptionally));
+        // Verify all futures completed successfully.
+        unloadFuture.get();
+        producerFuture.get();
+        consumerFuture.get();
 
         verify(producerClient, times(1)).getProxiedConnection(any(), anyInt());
         verify(producerLookupServiceSpy, never()).getBroker(topicName);
 
         verify(consumerClient, times(1)).getProxiedConnection(any(), anyInt());
         verify(consumerLookupServiceSpy, never()).getBroker(topicName);
-    }
-
-    private LookupService spyLookupService(PulsarClient client) throws IllegalAccessException {
-        LookupService svc = (LookupService) FieldUtils.readDeclaredField(client, "lookup", true);
-        var lookup = spy(svc);
-        FieldUtils.writeDeclaredField(client, "lookup", lookup, true);
-        return lookup;
     }
 }
