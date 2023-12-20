@@ -59,15 +59,13 @@ public class TopicListWatcherTest {
         when(client.getCnxPool()).thenReturn(connectionPool);
         when(connectionPool.genRandomKeyToSelectCon()).thenReturn(0);
         when(client.getConfiguration()).thenReturn(new ClientConfigurationData());
-        ClientCnx clientCnx = mock(ClientCnx.class);
-        clientCnxFuture = CompletableFuture.completedFuture(clientCnx);
+        clientCnxFuture = new CompletableFuture<>();
         when(client.getConnectionToServiceUrl()).thenReturn(clientCnxFuture);
         Timer timer = new HashedWheelTimer();
         when(client.timer()).thenReturn(timer);
         String topic = "persistent://tenant/ns/topic\\d+";
-        when(client.getConnection(topic)).thenReturn(clientCnxFuture);
-        when(client.getConnection(topic, 0)).thenReturn(
-                CompletableFuture.completedFuture(Pair.of(clientCnx, false)));
+        when(client.getConnection(topic, 0)).
+                thenReturn(clientCnxFuture.thenApply(clientCnx -> Pair.of(clientCnx, false)));
         when(client.getConnection(any(), any(), anyInt())).thenReturn(clientCnxFuture);
         when(connectionPool.getConnection(any(), any(), anyInt())).thenReturn(clientCnxFuture);
         watcherFuture = new CompletableFuture<>();
@@ -123,6 +121,4 @@ public class TopicListWatcherTest {
         watcher.handleCommandWatchTopicUpdate(update);
         verify(listener).onTopicsAdded(Collections.singletonList("persistent://tenant/ns/topic12"));
     }
-
-
 }
