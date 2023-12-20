@@ -18,11 +18,13 @@
  */
 package org.apache.pulsar.broker.loadbalance.extensions;
 
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertTrue;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
@@ -35,40 +37,68 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
+import org.apache.pulsar.broker.auth.MockedPulsarServiceBaseTest;
+import org.apache.pulsar.broker.authentication.AuthenticationService;
 import org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder;
 import org.apache.pulsar.broker.testcontext.PulsarTestContext;
+import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.impl.LookupService;
+import org.apache.pulsar.common.configuration.PulsarConfigurationLoader;
 import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.TopicType;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.PortManager;
-import org.apache.pulsar.proxy.server.ProxyTest;
+import org.apache.pulsar.metadata.impl.ZKMetadataStore;
+import org.apache.pulsar.proxy.server.ProxyConfiguration;
+import org.apache.pulsar.proxy.server.ProxyService;
+import org.mockito.Mockito;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 @Slf4j
-public class ExtensibleLoadManagerImplProxyTest extends ProxyTest {
+public class ExtensibleLoadManagerImplProxyTest extends MockedPulsarServiceBaseTest {
 
     private PulsarTestContext additionalTestContext;
+    private ProxyService proxyService;
 
     @Override
     @BeforeClass(alwaysRun = true)
-    public void setup() throws Exception {
-        super.setup();
+    protected void setup() throws Exception {
+        internalSetup();
         additionalTestContext = createAdditionalPulsarTestContext(configureExtensibleLoadManager(getDefaultConf()));
+
+        setupDefaultTenantAndNamespace();
+
+        var proxyConfig = initializeProxyConfig();
+        proxyService = Mockito.spy(new ProxyService(proxyConfig, new AuthenticationService(
+                PulsarConfigurationLoader.convertFrom(proxyConfig))));
+        doReturn(registerCloseable(new ZKMetadataStore(mockZooKeeper))).when(proxyService).createLocalMetadataStore();
+        doReturn(registerCloseable(new ZKMetadataStore(mockZooKeeperGlobal))).when(proxyService)
+                .createConfigurationMetadataStore();
+        proxyService.start();
+        registerCloseable(proxyService);
+    }
+
+    private ProxyConfiguration initializeProxyConfig() {
+        var proxyConfig = new ProxyConfiguration();
+        proxyConfig.setServicePort(Optional.of(0));
+        proxyConfig.setBrokerProxyAllowedTargetPorts("*");
+        proxyConfig.setMetadataStoreUrl(DUMMY_VALUE);
+        proxyConfig.setConfigurationMetadataStoreUrl(GLOBAL_DUMMY_VALUE);
+        return proxyConfig;
     }
 
     @Override
     @AfterClass(alwaysRun = true)
-    public void cleanup() throws Exception {
+    protected void cleanup() throws Exception {
         if (additionalTestContext != null) {
             closeTestContext(additionalTestContext);
         }
-        super.cleanup();
+        internalCleanup();
     }
 
     @Override
@@ -90,7 +120,6 @@ public class ExtensibleLoadManagerImplProxyTest extends ProxyTest {
         config.setTopicLevelPoliciesEnabled(true);
         return config;
     }
-
 
     public void closeTestContext(PulsarTestContext pulsarTestContext) {
         PulsarService pulsarService = pulsarTestContext.getPulsarService();
