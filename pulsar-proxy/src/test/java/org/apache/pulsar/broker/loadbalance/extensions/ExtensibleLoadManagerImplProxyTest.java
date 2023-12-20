@@ -18,12 +18,18 @@
  */
 package org.apache.pulsar.broker.loadbalance.extensions;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertTrue;
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -31,48 +37,50 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.FieldUtils;
+import org.apache.pulsar.broker.MultiBrokerBaseTest;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
-import org.apache.pulsar.broker.auth.MockedPulsarServiceBaseTest;
 import org.apache.pulsar.broker.authentication.AuthenticationService;
 import org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder;
-import org.apache.pulsar.broker.testcontext.PulsarTestContext;
-import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClient;
+import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.impl.LookupService;
+import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.common.configuration.PulsarConfigurationLoader;
 import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.TopicType;
 import org.apache.pulsar.common.util.FutureUtil;
-import org.apache.pulsar.common.util.PortManager;
 import org.apache.pulsar.metadata.impl.ZKMetadataStore;
 import org.apache.pulsar.proxy.server.ProxyConfiguration;
 import org.apache.pulsar.proxy.server.ProxyService;
 import org.mockito.Mockito;
-import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 @Slf4j
-public class ExtensibleLoadManagerImplProxyTest extends MockedPulsarServiceBaseTest {
+public class ExtensibleLoadManagerImplProxyTest extends MultiBrokerBaseTest {
 
-    private PulsarTestContext additionalTestContext;
     private ProxyService proxyService;
 
     @Override
-    @BeforeClass(alwaysRun = true)
-    protected void setup() throws Exception {
-        internalSetup();
-        additionalTestContext = createAdditionalPulsarTestContext(configureExtensibleLoadManager(getDefaultConf()));
+    public int numberOfAdditionalBrokers() {
+        return 1;
+    }
 
-        setupDefaultTenantAndNamespace();
+    @Override
+    public void doInitConf() throws Exception {
+        super.doInitConf();
+        configureExtensibleLoadManager(conf);
+    }
 
+    @BeforeClass(dependsOnMethods = "setup", alwaysRun = true)
+    public void proxySetup() throws Exception {
         var proxyConfig = initializeProxyConfig();
         proxyService = Mockito.spy(new ProxyService(proxyConfig, new AuthenticationService(
                 PulsarConfigurationLoader.convertFrom(proxyConfig))));
@@ -83,28 +91,9 @@ public class ExtensibleLoadManagerImplProxyTest extends MockedPulsarServiceBaseT
         registerCloseable(proxyService);
     }
 
-    private ProxyConfiguration initializeProxyConfig() {
-        var proxyConfig = new ProxyConfiguration();
-        proxyConfig.setServicePort(Optional.of(0));
-        proxyConfig.setBrokerProxyAllowedTargetPorts("*");
-        proxyConfig.setMetadataStoreUrl(DUMMY_VALUE);
-        proxyConfig.setConfigurationMetadataStoreUrl(GLOBAL_DUMMY_VALUE);
-        return proxyConfig;
-    }
-
     @Override
-    @AfterClass(alwaysRun = true)
-    protected void cleanup() throws Exception {
-        if (additionalTestContext != null) {
-            closeTestContext(additionalTestContext);
-        }
-        internalCleanup();
-    }
-
-    @Override
-    public void doInitConf() throws Exception {
-        super.doInitConf();
-        configureExtensibleLoadManager(conf);
+    protected ServiceConfiguration createConfForAdditionalBroker(int additionalBrokerIndex) {
+        return configureExtensibleLoadManager(getDefaultConf());
     }
 
     private ServiceConfiguration configureExtensibleLoadManager(ServiceConfiguration config) {
@@ -121,84 +110,102 @@ public class ExtensibleLoadManagerImplProxyTest extends MockedPulsarServiceBaseT
         return config;
     }
 
-    public void closeTestContext(PulsarTestContext pulsarTestContext) {
-        PulsarService pulsarService = pulsarTestContext.getPulsarService();
-        try {
-            pulsarService.getConfiguration().setBrokerShutdownTimeoutMs(0L);
-            pulsarTestContext.close();
-            pulsarService.getConfiguration().getBrokerServicePort().ifPresent(PortManager::releaseLockedPort);
-            pulsarService.getConfiguration().getWebServicePort().ifPresent(PortManager::releaseLockedPort);
-            pulsarService.getConfiguration().getWebServicePortTls().ifPresent(PortManager::releaseLockedPort);
-        } catch (Exception e) {
-            log.warn("Failed to stop additional broker", e);
-        }
+    private ProxyConfiguration initializeProxyConfig() {
+        var proxyConfig = new ProxyConfiguration();
+        proxyConfig.setServicePort(Optional.of(0));
+        proxyConfig.setBrokerProxyAllowedTargetPorts("*");
+        proxyConfig.setMetadataStoreUrl(DUMMY_VALUE);
+        proxyConfig.setConfigurationMetadataStoreUrl(GLOBAL_DUMMY_VALUE);
+        return proxyConfig;
     }
 
     @Test(timeOut = 30_000)
-    public void testProxyProduceConsumer() throws Exception {
-        var tenant = "public";
-        var ns = "default";
-        var namespaceName = NamespaceName.get(tenant, ns);
-        var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName, "topicA");
+    public void testProxyProduceConsume() throws Exception {
+        var timeoutMs = 15_000;
+        var namespaceName = NamespaceName.get("public", "default");
+        var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName, "testProxyProduceConsume");
 
         @Cleanup
-        PulsarClient client = PulsarClient.builder().serviceUrl(proxyService.getServiceUrl()).build();
+        var producerClient =
+                Mockito.spy((PulsarClientImpl) PulsarClient.builder().serviceUrl(proxyService.getServiceUrl()).build());
 
         @Cleanup
-        var producer = client.newProducer().topic(topicName.toString()).create();
+        var producer = producerClient.newProducer().topic(topicName.toString()).create();
+        var producerLookupServiceSpy = spyLookupService(producerClient);
 
         @Cleanup
-        var consumer = client.newConsumer().topic(topicName.toString()).subscriptionName("my-subscription").subscribe();
-
-        var bundleRange = admin.lookups().getBundleRange(topicName.toString());
-
-        var lookupServiceSpy = spyLookupService(client);
+        var consumerClient =
+                Mockito.spy((PulsarClientImpl) PulsarClient.builder().serviceUrl(proxyService.getServiceUrl()).build());
+        @Cleanup
+        var consumer = consumerClient.newConsumer().topic(topicName.toString()).subscriptionName("my-sub").subscribe();
+        var consumerLookupServiceSpy = spyLookupService(consumerClient);
 
         @Cleanup("shutdown")
         var threadPool = Executors.newCachedThreadPool();
+
+        var bundleRange = admin.lookups().getBundleRange(topicName.toString());
 
         var cdl = new CountDownLatch(1);
         var semSend = new Semaphore(0);
         var messagesBeforeUnload = 100;
         var messagesAfterUnload = 100;
 
-        var futures = new ArrayList<CompletableFuture<?>>();
-
-        for (int i = 0; i < messagesBeforeUnload + messagesAfterUnload; i++) {
-            final int id = i;
-            futures.add(CompletableFuture.runAsync(() -> {
-                try {
+        var pendingMessageIds = Collections.synchronizedSet(new HashSet<MessageId>());
+        var producerFuture = CompletableFuture.runAsync(() -> {
+            try {
+                for (int i = 0; i < messagesBeforeUnload + messagesAfterUnload; i++) {
                     semSend.acquire();
-                    producer.send(("test" + id).getBytes());
-                } catch (Exception e) {
-                    throw new CompletionException(e);
+                    var messageId = producer.send(("test" + i).getBytes());
+                    pendingMessageIds.add(messageId);
                 }
-            }, threadPool).orTimeout(15, TimeUnit.SECONDS));
-        }
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+        }, threadPool).orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
 
-        futures.add(CompletableFuture.runAsync(() -> {
+        var consumerFuture = CompletableFuture.runAsync(() -> {
+            while (!producerFuture.isDone() || !pendingMessageIds.isEmpty()) {
+                try {
+                    var recvMessage = consumer.receive(1_000, TimeUnit.MILLISECONDS);
+                    if (recvMessage != null) {
+                        var recvMessageId = recvMessage.getMessageId();
+                        pendingMessageIds.remove(recvMessageId);
+                        consumer.acknowledge(recvMessage);
+                    }
+                } catch (PulsarClientException e) {
+                    // Retry
+                }
+            }
+        }, threadPool).orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
+
+        var unloadFuture = CompletableFuture.runAsync(() -> {
             try {
                 cdl.await();
-                var broker = admin.lookups().lookupTopic(topicName.toString());
-                var dstBrokerUrl = Stream.of(pulsarTestContext, additionalTestContext).
-                        filter(ptc -> !broker.equals(ptc.getPulsarService().getLookupServiceAddress())).
-                        map(pulsarTestContext -> pulsarTestContext.getPulsarService().getLookupServiceAddress())
-                        .findAny().get();
+                var srcBrokerUrl = admin.lookups().lookupTopic(topicName.toString());
+                var dstBrokerUrl = getAllBrokers().stream().
+                        filter(pulsarService -> !Objects.equals(srcBrokerUrl, pulsarService.getBrokerServiceUrl())).
+                        map(PulsarService::getLookupServiceAddress).
+                        findAny().get();
                 semSend.release(messagesBeforeUnload);
                 admin.namespaces().unloadNamespaceBundle(namespaceName.toString(), bundleRange, dstBrokerUrl);
                 semSend.release(messagesAfterUnload);
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
-        }, threadPool).orTimeout(15, TimeUnit.SECONDS));
+        }, threadPool).orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
 
         cdl.countDown();
-        FutureUtil.waitForAllAndSupportCancel(futures).orTimeout(15, TimeUnit.SECONDS).get();
 
+        var futures = List.of(producerFuture, consumerFuture, unloadFuture);
+        FutureUtil.waitForAllAndSupportCancel(futures).get();
         assertTrue(futures.stream().allMatch(CompletableFuture::isDone));
         assertTrue(futures.stream().noneMatch(CompletableFuture::isCompletedExceptionally));
 
-        verify(lookupServiceSpy, never()).getBroker(topicName);
+        verify(producerClient, times(1)).getProxiedConnection(any(), anyInt());
+        verify(producerLookupServiceSpy, never()).getBroker(topicName);
+
+        verify(consumerClient, times(1)).getProxiedConnection(any(), anyInt());
+        verify(consumerLookupServiceSpy, never()).getBroker(topicName);
     }
 
     private LookupService spyLookupService(PulsarClient client) throws IllegalAccessException {
