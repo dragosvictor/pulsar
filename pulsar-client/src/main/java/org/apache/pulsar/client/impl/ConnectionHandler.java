@@ -117,7 +117,7 @@ public class ConnectionHandler {
             } else if (state.topic == null) {
                 cnxFuture = state.client.getConnectionToServiceUrl();
             } else {
-                cnxFuture = state.client.getConnection(state.topic, randomKeyForSelectConnection).thenCompose(
+                cnxFuture = state.client.getConnection(state.topic, randomKeyForSelectConnection).thenApply(
                         connectionResult -> {
                             useProxy = connectionResult.getRight();
                             return connectionResult.getLeft();

@@ -273,7 +273,7 @@ public class TransactionBufferClientTest extends TransactionTestBase {
         completableFuture.complete(clientCnx);
         when(mockClient.getConnection(anyString())).thenReturn(completableFuture);
         when(mockClient.getConnection(anyString(), anyInt())).thenReturn(
-                CompletableFuture.completedFuture(Pair.of(completableFuture, false)));
+                CompletableFuture.completedFuture(Pair.of(clientCnx, false)));
         when(mockClient.getConnection(any(), any(), anyInt())).thenReturn(completableFuture);
         ChannelHandlerContext cnx = mock(ChannelHandlerContext.class);
         when(clientCnx.ctx()).thenReturn(cnx);
@@ -326,11 +326,9 @@ public class TransactionBufferClientTest extends TransactionTestBase {
         PulsarClientImpl mockClient = mock(PulsarClientImpl.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);
         when(mockClient.getCnxPool()).thenReturn(connectionPool);
-        CompletableFuture<ClientCnx> completableFuture = new CompletableFuture<>();
         ClientCnx clientCnx = mock(ClientCnx.class);
-        completableFuture.complete(clientCnx);
         when(mockClient.getConnection(anyString(), anyInt())).thenReturn(
-                CompletableFuture.completedFuture(Pair.of(completableFuture, false)));
+                CompletableFuture.completedFuture(Pair.of(clientCnx, false)));
         ChannelHandlerContext cnx = mock(ChannelHandlerContext.class);
         when(clientCnx.ctx()).thenReturn(cnx);
         Channel channel = mock(Channel.class);

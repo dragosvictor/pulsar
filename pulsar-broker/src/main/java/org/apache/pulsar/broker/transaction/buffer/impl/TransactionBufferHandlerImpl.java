@@ -301,7 +301,7 @@ public class TransactionBufferHandlerImpl implements TransactionBufferHandler {
     }
 
     public CompletableFuture<ClientCnx> getClientCnxWithLookup(String topic) {
-        return pulsarClient.getConnection(topic, randomKeyForSelectConnection).thenCompose(Pair::getLeft);
+        return pulsarClient.getConnection(topic, randomKeyForSelectConnection).thenApply(Pair::getLeft);
     }
 
     public CompletableFuture<ClientCnx> getClientCnx(String topic) {

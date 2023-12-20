@@ -947,12 +947,12 @@ public class PulsarClientImpl implements PulsarClient {
         conf.setTlsTrustStorePassword(tlsTrustStorePassword);
     }
 
-    public CompletableFuture<Pair<CompletableFuture<ClientCnx>, Boolean>> getConnection(
-            final String topic, int randomKeyForSelectConnection) {
-        TopicName topicName = TopicName.get(topic);
-        return lookup.getBroker(topicName).thenApply(lookupTopicResult ->
-                Pair.of(getConnection(lookupTopicResult.getLogicalAddress(), lookupTopicResult.getPhysicalAddress(),
-                        randomKeyForSelectConnection), lookupTopicResult.isUseProxy()));
+    public CompletableFuture<Pair<ClientCnx, Boolean>> getConnection(String topic, int randomKeyForSelectConnection) {
+        CompletableFuture<LookupTopicResult> lookupTopicResult = lookup.getBroker(TopicName.get(topic));
+        CompletableFuture<Boolean> isUseProxy = lookupTopicResult.thenApply(LookupTopicResult::isUseProxy);
+        return lookupTopicResult.thenCompose(lookupResult -> getConnection(lookupResult.getLogicalAddress(),
+                        lookupResult.getPhysicalAddress(), randomKeyForSelectConnection)).
+                thenCombine(isUseProxy, Pair::of);
     }
 
     /**
@@ -960,7 +960,7 @@ public class PulsarClientImpl implements PulsarClient {
      */
     @VisibleForTesting
     public CompletableFuture<ClientCnx> getConnection(final String topic) {
-        return getConnection(topic, cnxPool.genRandomKeyToSelectCon()).thenCompose(Pair::getLeft);
+        return getConnection(topic, cnxPool.genRandomKeyToSelectCon()).thenApply(Pair::getLeft);
     }
 
     public CompletableFuture<ClientCnx> getConnection(final String topic, final String url) {

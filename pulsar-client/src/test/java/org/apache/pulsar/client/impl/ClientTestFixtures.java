@@ -83,8 +83,7 @@ class ClientTestFixtures {
         when(clientMock.getConnection(any())).thenReturn(CompletableFuture.completedFuture(clientCnxMock));
         when(clientMock.getConnection(anyString())).thenReturn(CompletableFuture.completedFuture(clientCnxMock));
         when(clientMock.getConnection(anyString(), anyInt()))
-                .thenReturn(CompletableFuture.completedFuture(
-                        Pair.of(CompletableFuture.completedFuture(clientCnxMock), false)));
+                .thenReturn(CompletableFuture.completedFuture(Pair.of(clientCnxMock, false)));
         when(clientMock.getConnection(any(), any(), anyInt()))
                 .thenReturn(CompletableFuture.completedFuture(clientCnxMock));
         ConnectionPool connectionPoolMock = mock(ConnectionPool.class);
