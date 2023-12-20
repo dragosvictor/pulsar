@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.FieldUtils;
+import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.MultiBrokerBaseTest;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
@@ -124,7 +125,8 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
     public void testProxyProduceConsume() throws Exception {
         var timeoutMs = 15_000;
         var namespaceName = NamespaceName.get("public", "default");
-        var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName, "testProxyProduceConsume");
+        var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName,
+                BrokerTestUtil.newUniqueName("testProxyProduceConsume"));
 
         @Cleanup
         var producerClient =
@@ -138,7 +140,8 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         var consumerClient =
                 Mockito.spy((PulsarClientImpl) PulsarClient.builder().serviceUrl(proxyService.getServiceUrl()).build());
         @Cleanup
-        var consumer = consumerClient.newConsumer().topic(topicName.toString()).subscriptionName("my-sub").subscribe();
+        var consumer = consumerClient.newConsumer().topic(topicName.toString()).
+                subscriptionName(BrokerTestUtil.newUniqueName("my-sub")).subscribe();
         var consumerLookupServiceSpy = spyLookupService(consumerClient);
 
         @Cleanup("shutdown")
