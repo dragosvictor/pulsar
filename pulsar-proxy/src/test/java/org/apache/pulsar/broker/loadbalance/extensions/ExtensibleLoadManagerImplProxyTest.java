@@ -141,7 +141,7 @@ public class ExtensibleLoadManagerImplProxyTest extends MultiBrokerBaseTest {
         var consumerLookupServiceSpy = spyLookupService(consumerClient);
 
         @Cleanup("shutdown")
-        var threadPool = Executors.newCachedThreadPool();
+        var threadPool = Executors.newFixedThreadPool(3);
 
         var bundleRange = admin.lookups().getBundleRange(topicName.toString());
 
