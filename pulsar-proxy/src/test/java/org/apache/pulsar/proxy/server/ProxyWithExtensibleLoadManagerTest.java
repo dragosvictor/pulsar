@@ -121,7 +121,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         return proxyConfig;
     }
 
-    @Test(timeOut = 30_000)
+    @Test(timeOut = 30_000, invocationCount = 100, skipFailedInvocations = true)
     public void testProxyProduceConsume() throws Exception {
         var timeoutMs = 15_000;
         var namespaceName = NamespaceName.get("public", "default");
