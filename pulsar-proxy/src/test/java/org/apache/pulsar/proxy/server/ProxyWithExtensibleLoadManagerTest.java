@@ -87,14 +87,8 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         config.setNumIOThreads(8);
         config.setLoadBalancerInFlightServiceUnitStateWaitingTimeInMillis(5 * 1000);
         config.setLoadBalancerServiceUnitStateMonitorIntervalInSeconds(1);
-        config.setForceDeleteNamespaceAllowed(true);
-        config.setAllowAutoTopicCreationType(TopicType.NON_PARTITIONED);
-        config.setAllowAutoTopicCreation(true);
         config.setLoadManagerClassName(ExtensibleLoadManagerImpl.class.getName());
-        config.setLoadBalancerLoadSheddingStrategy(TransferShedder.class.getName());
         config.setLoadBalancerSheddingEnabled(false);
-        config.setLoadBalancerDebugModeEnabled(true);
-        config.setTopicLevelPoliciesEnabled(true);
         return config;
     }
 
@@ -138,7 +132,6 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
 
     @AfterMethod(alwaysRun = true)
     public void proxyCleanup() throws Exception {
-        registerCloseable(null);
         if (proxyService != null) {
             proxyService.close();
         }
