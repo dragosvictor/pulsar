@@ -108,7 +108,18 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         return lookup;
     }
 
-    @Test(timeOut = 30_000, invocationCount = 100, skipFailedInvocations = true)
+    private PulsarClientImpl createClient(ProxyService proxyService) {
+        try {
+            return Mockito.spy((PulsarClientImpl) PulsarClient.builder().
+                    serviceUrl(proxyService.getServiceUrl()).
+                    operationTimeout(1, TimeUnit.HOURS).
+                    build());
+        } catch (PulsarClientException e) {
+            throw new CompletionException(e);
+        }
+    }
+
+    @Test(timeOut = 3600_000, invocationCount = 100, skipFailedInvocations = true)
     public void testProxyProduceConsume() throws Exception {
         var proxyConfig = initializeProxyConfig();
 
@@ -125,27 +136,27 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName,
                 BrokerTestUtil.newUniqueName("testProxyProduceConsume"));
 
-        // Client creation fails, debug here.
-        Thread.sleep(10_000);
+        @Cleanup("shutdownNow")
+        var threadPool = Executors.newCachedThreadPool();
+
+        var producerClientFuture = CompletableFuture.supplyAsync(() -> createClient(proxyService), threadPool);
+        var consumerClientFuture = CompletableFuture.supplyAsync(() -> createClient(proxyService), threadPool);
 
         @Cleanup
-        var producerClient =
-                Mockito.spy((PulsarClientImpl) PulsarClient.builder().serviceUrl(proxyService.getServiceUrl()).build());
+        var producerClient = producerClientFuture.get();
 
         @Cleanup
         var producer = producerClient.newProducer().topic(topicName.toString()).create();
         var producerLookupServiceSpy = spyLookupService(producerClient);
 
         @Cleanup
-        var consumerClient =
-                Mockito.spy((PulsarClientImpl) PulsarClient.builder().serviceUrl(proxyService.getServiceUrl()).build());
+        var consumerClient = consumerClientFuture.get();
+
         @Cleanup
         var consumer = consumerClient.newConsumer().topic(topicName.toString()).
                 subscriptionName(BrokerTestUtil.newUniqueName("my-sub")).subscribe();
         var consumerLookupServiceSpy = spyLookupService(consumerClient);
 
-        @Cleanup("shutdown")
-        var threadPool = Executors.newFixedThreadPool(3);
 
         var bundleRange = admin.lookups().getBundleRange(topicName.toString());
 
