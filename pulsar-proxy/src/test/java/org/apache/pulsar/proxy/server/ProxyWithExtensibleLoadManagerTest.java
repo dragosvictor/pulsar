@@ -125,6 +125,9 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName,
                 BrokerTestUtil.newUniqueName("testProxyProduceConsume"));
 
+        // Client creation fails, debug here.
+        Thread.sleep(10_000);
+
         @Cleanup
         var producerClient =
                 Mockito.spy((PulsarClientImpl) PulsarClient.builder().serviceUrl(proxyService.getServiceUrl()).build());
