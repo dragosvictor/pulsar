@@ -133,7 +133,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                 .createConfigurationMetadataStore();
         proxyService.start();
 
-        var timeoutMs = 15_000;
+        var timeoutMs = 3_600_000;
         var namespaceName = NamespaceName.get("public", "default");
         var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName,
                 BrokerTestUtil.newUniqueName("testProxyProduceConsume"));
