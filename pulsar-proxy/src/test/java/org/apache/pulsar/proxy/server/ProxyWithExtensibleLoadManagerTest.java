@@ -45,6 +45,7 @@ import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.authentication.AuthenticationService;
 import org.apache.pulsar.broker.loadbalance.extensions.ExtensibleLoadManagerImpl;
 import org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder;
+import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
@@ -183,7 +184,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                     semSend.acquire();
                     var messageId = producer.send(("test" + i).getBytes());
                     pendingMessageIds.add(messageId);
-                    log.info("DMISCA sent message {}", i);
+                    log.info("DMISCA sent message {}", messageId);
                 }
             } catch (Exception e) {
                 log.error("DMISCA Error sending message", e);
@@ -193,10 +194,12 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
 
         var consumerFuture = CompletableFuture.runAsync(() -> {
             while (!producerFuture.isDone() || !pendingMessageIds.isEmpty()) {
+                log.info("DMISCA receive loop: producerFuture.isDone: {}, pendingMessageIds: {}",
+                        producerFuture.isDone(), pendingMessageIds);
                 try {
                     log.info("DMISCA receiving message");
                     var recvMessage = consumer.receive(1_000, TimeUnit.MILLISECONDS);
-                    log.info("DMISCA received message {}", recvMessage);
+                    log.info("DMISCA received message {}", Optional.ofNullable(recvMessage).map(Message::getMessageId));
                     if (recvMessage != null) {
                         var recvMessageId = recvMessage.getMessageId();
                         pendingMessageIds.remove(recvMessageId);
