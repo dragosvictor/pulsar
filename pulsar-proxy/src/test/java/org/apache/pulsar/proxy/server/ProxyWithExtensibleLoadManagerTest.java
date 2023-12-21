@@ -121,7 +121,9 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         }
     }
 
-    @Test(timeOut = 3600_000, invocationCount = 100, skipFailedInvocations = true)
+    private static final long TIMEOUT_MS = 1_200_000;
+
+    @Test(timeOut = TIMEOUT_MS, invocationCount = 100, skipFailedInvocations = true)
     public void testProxyProduceConsume() throws Exception {
         var proxyConfig = initializeProxyConfig();
 
@@ -133,7 +135,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                 .createConfigurationMetadataStore();
         proxyService.start();
 
-        var timeoutMs = 3_600_000;
+        var timeoutMs = TIMEOUT_MS;
         var namespaceName = NamespaceName.get("public", "default");
         var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName,
                 BrokerTestUtil.newUniqueName("testProxyProduceConsume"));
