@@ -186,9 +186,9 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                 for (int i = 0; i < messagesBeforeUnload + messagesAfterUnload; i++) {
                     log.info("DMISCA sending message {}", i);
                     semSend.acquire();
-                    var messageId = producer.send(i);
                     pendingMessageIds.add(i);
-                    log.info("DMISCA sent message {}", messageId);
+                    producer.send(i);
+                    log.info("DMISCA sent message {}", i);
                 }
             } catch (Exception e) {
                 log.error("DMISCA Error sending message", e);
@@ -202,11 +202,11 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                         producerFuture.isDone(), pendingMessageIds);
                 try {
                     log.info("DMISCA receiving message");
-                    var recvMessage = consumer.receive(1_000, TimeUnit.MILLISECONDS);
+                    var recvMessage = consumer.receive(1_500, TimeUnit.MILLISECONDS);
                     log.info("DMISCA received message {}", Optional.ofNullable(recvMessage).map(Message::getValue));
                     if (recvMessage != null) {
-                        pendingMessageIds.remove(recvMessage.getValue());
                         consumer.acknowledge(recvMessage);
+                        pendingMessageIds.remove(recvMessage.getValue());
                     }
                 } catch (PulsarClientException e) {
                     log.error("DMISCA error receiving message, retrying", e);
