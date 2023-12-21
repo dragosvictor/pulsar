@@ -79,6 +79,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
     }
 
     private ServiceConfiguration configureExtensibleLoadManager(ServiceConfiguration config) {
+        config.setNumIOThreads(8);
         config.setLoadBalancerInFlightServiceUnitStateWaitingTimeInMillis(5 * 1000);
         config.setLoadBalancerServiceUnitStateMonitorIntervalInSeconds(1);
         config.setForceDeleteNamespaceAllowed(true);
@@ -94,6 +95,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
 
     private ProxyConfiguration initializeProxyConfig() {
         var proxyConfig = new ProxyConfiguration();
+        proxyConfig.setNumIOThreads(8);
         proxyConfig.setServicePort(Optional.of(0));
         proxyConfig.setBrokerProxyAllowedTargetPorts("*");
         proxyConfig.setMetadataStoreUrl(DUMMY_VALUE);
@@ -137,26 +139,32 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                 BrokerTestUtil.newUniqueName("testProxyProduceConsume"));
 
         @Cleanup("shutdownNow")
-        var threadPool = Executors.newCachedThreadPool();
+        var threadPool = Executors.newFixedThreadPool(5);
 
+        log.info("DMISCA creating producer client future");
         var producerClientFuture = CompletableFuture.supplyAsync(() -> createClient(proxyService), threadPool);
+
+        log.info("DMISCA creating consumer client future");
         var consumerClientFuture = CompletableFuture.supplyAsync(() -> createClient(proxyService), threadPool);
 
         @Cleanup
         var producerClient = producerClientFuture.get();
+        log.info("DMISCA created producer client");
 
         @Cleanup
         var producer = producerClient.newProducer().topic(topicName.toString()).create();
+        log.info("DMISCA created producer");
         var producerLookupServiceSpy = spyLookupService(producerClient);
 
         @Cleanup
         var consumerClient = consumerClientFuture.get();
+        log.info("DMISCA created consumer client");
 
         @Cleanup
         var consumer = consumerClient.newConsumer().topic(topicName.toString()).
                 subscriptionName(BrokerTestUtil.newUniqueName("my-sub")).subscribe();
+        log.info("DMISCA created consumer");
         var consumerLookupServiceSpy = spyLookupService(consumerClient);
-
 
         var bundleRange = admin.lookups().getBundleRange(topicName.toString());
 
@@ -169,11 +177,14 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         var producerFuture = CompletableFuture.runAsync(() -> {
             try {
                 for (int i = 0; i < messagesBeforeUnload + messagesAfterUnload; i++) {
+                    log.info("DMISCA sending message {}", i);
                     semSend.acquire();
                     var messageId = producer.send(("test" + i).getBytes());
                     pendingMessageIds.add(messageId);
+                    log.info("DMISCA sent message {}", i);
                 }
             } catch (Exception e) {
+                log.error("DMISCA Error sending message", e);
                 throw new CompletionException(e);
             }
         }, threadPool).orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
@@ -181,13 +192,16 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         var consumerFuture = CompletableFuture.runAsync(() -> {
             while (!producerFuture.isDone() || !pendingMessageIds.isEmpty()) {
                 try {
+                    log.info("DMISCA receiving message");
                     var recvMessage = consumer.receive(1_000, TimeUnit.MILLISECONDS);
+                    log.info("DMISCA received message {}", recvMessage);
                     if (recvMessage != null) {
                         var recvMessageId = recvMessage.getMessageId();
                         pendingMessageIds.remove(recvMessageId);
                         consumer.acknowledge(recvMessage);
                     }
                 } catch (PulsarClientException e) {
+                    log.error("DMISCA error receiving message, retrying", e);
                     // Retry
                 }
             }
