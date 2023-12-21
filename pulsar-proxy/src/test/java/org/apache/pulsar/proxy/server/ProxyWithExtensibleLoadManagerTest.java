@@ -168,6 +168,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         var consumer = consumerClient.newConsumer(Schema.INT32).topic(topicName.toString()).
                 subscriptionInitialPosition(SubscriptionInitialPosition.Earliest).
                 subscriptionName(BrokerTestUtil.newUniqueName("my-sub")).
+                ackTimeout(1000, TimeUnit.MILLISECONDS).
                 subscribe();
         log.info("DMISCA created consumer");
         var consumerLookupServiceSpy = spyLookupService(consumerClient);
@@ -221,7 +222,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                 var dstBrokerUrl = getAllBrokers().stream().
                         filter(pulsarService -> !Objects.equals(srcBrokerUrl, pulsarService.getBrokerServiceUrl())).
                         map(PulsarService::getLookupServiceAddress).
-                        findAny().get();
+                        findAny().orElseThrow(() -> new Exception("Could not determine destination broker URL"));
                 semSend.release(messagesBeforeUnload);
                 admin.namespaces().unloadNamespaceBundle(namespaceName.toString(), bundleRange, dstBrokerUrl);
                 semSend.release(messagesAfterUnload);
