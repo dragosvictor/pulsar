@@ -57,11 +57,15 @@ import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.TopicType;
 import org.apache.pulsar.metadata.impl.ZKMetadataStore;
 import org.mockito.Mockito;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
 
     private static final int TEST_TIMEOUT_MS = 30_000;
+
+    private ProxyService proxyService;
 
     @Override
     public int numberOfAdditionalBrokers() {
@@ -121,18 +125,27 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         }
     }
 
-    @Test(timeOut = TEST_TIMEOUT_MS, invocationCount = 100, skipFailedInvocations = true)
-    public void testProxyProduceConsume() throws Exception {
+    @BeforeMethod(alwaysRun = true)
+    public void proxySetup() throws Exception {
         var proxyConfig = initializeProxyConfig();
-
-        @Cleanup
-        var proxyService = Mockito.spy(new ProxyService(proxyConfig, new AuthenticationService(
+        proxyService = Mockito.spy(new ProxyService(proxyConfig, new AuthenticationService(
                 PulsarConfigurationLoader.convertFrom(proxyConfig))));
         doReturn(registerCloseable(new ZKMetadataStore(mockZooKeeper))).when(proxyService).createLocalMetadataStore();
         doReturn(registerCloseable(new ZKMetadataStore(mockZooKeeperGlobal))).when(proxyService)
                 .createConfigurationMetadataStore();
         proxyService.start();
+    }
 
+    @AfterMethod(alwaysRun = true)
+    public void proxyCleanup() throws Exception {
+        registerCloseable(null);
+        if (proxyService != null) {
+            proxyService.close();
+        }
+    }
+
+    @Test(timeOut = TEST_TIMEOUT_MS, invocationCount = 100, skipFailedInvocations = true)
+    public void testProxyProduceConsume() throws Exception {
         var namespaceName = NamespaceName.get("public", "default");
         var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName,
                 BrokerTestUtil.newUniqueName("testProxyProduceConsume"));
