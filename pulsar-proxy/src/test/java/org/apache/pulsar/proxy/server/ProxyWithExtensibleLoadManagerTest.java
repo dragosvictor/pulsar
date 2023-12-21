@@ -36,7 +36,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.MultiBrokerBaseTest;
@@ -45,7 +44,6 @@ import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.authentication.AuthenticationService;
 import org.apache.pulsar.broker.loadbalance.extensions.ExtensibleLoadManagerImpl;
 import org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder;
-import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Schema;
@@ -61,8 +59,9 @@ import org.apache.pulsar.metadata.impl.ZKMetadataStore;
 import org.mockito.Mockito;
 import org.testng.annotations.Test;
 
-@Slf4j
 public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
+
+    private static final int TEST_TIMEOUT_MS = 30_000;
 
     @Override
     public int numberOfAdditionalBrokers() {
@@ -116,16 +115,13 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         try {
             return Mockito.spy((PulsarClientImpl) PulsarClient.builder().
                     serviceUrl(proxyService.getServiceUrl()).
-                    operationTimeout(TIMEOUT_MS, TimeUnit.MILLISECONDS).
                     build());
         } catch (PulsarClientException e) {
             throw new CompletionException(e);
         }
     }
 
-    private static final int TIMEOUT_MS = 1_200_000;
-
-    @Test(timeOut = TIMEOUT_MS, invocationCount = 100, skipFailedInvocations = true)
+    @Test(timeOut = TEST_TIMEOUT_MS, invocationCount = 100, skipFailedInvocations = true)
     public void testProxyProduceConsume() throws Exception {
         var proxyConfig = initializeProxyConfig();
 
@@ -137,40 +133,30 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                 .createConfigurationMetadataStore();
         proxyService.start();
 
-        var timeoutMs = TIMEOUT_MS;
         var namespaceName = NamespaceName.get("public", "default");
         var topicName = TopicName.get(TopicDomain.persistent.toString(), namespaceName,
                 BrokerTestUtil.newUniqueName("testProxyProduceConsume"));
 
         @Cleanup("shutdownNow")
-        var threadPool = Executors.newFixedThreadPool(5);
+        var threadPool = Executors.newCachedThreadPool();
 
-        log.info("DMISCA creating producer client future");
         var producerClientFuture = CompletableFuture.supplyAsync(() -> createClient(proxyService), threadPool);
-
-        log.info("DMISCA creating consumer client future");
         var consumerClientFuture = CompletableFuture.supplyAsync(() -> createClient(proxyService), threadPool);
 
         @Cleanup
         var producerClient = producerClientFuture.get();
-        log.info("DMISCA created producer client");
-
         @Cleanup
         var producer = producerClient.newProducer(Schema.INT32).topic(topicName.toString()).create();
-        log.info("DMISCA created producer");
         var producerLookupServiceSpy = spyLookupService(producerClient);
 
         @Cleanup
         var consumerClient = consumerClientFuture.get();
-        log.info("DMISCA created consumer client");
-
         @Cleanup
         var consumer = consumerClient.newConsumer(Schema.INT32).topic(topicName.toString()).
                 subscriptionInitialPosition(SubscriptionInitialPosition.Earliest).
                 subscriptionName(BrokerTestUtil.newUniqueName("my-sub")).
                 ackTimeout(1000, TimeUnit.MILLISECONDS).
                 subscribe();
-        log.info("DMISCA created consumer");
         var consumerLookupServiceSpy = spyLookupService(consumerClient);
 
         var bundleRange = admin.lookups().getBundleRange(topicName.toString());
@@ -184,36 +170,28 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         var producerFuture = CompletableFuture.runAsync(() -> {
             try {
                 for (int i = 0; i < messagesBeforeUnload + messagesAfterUnload; i++) {
-                    log.info("DMISCA sending message {}", i);
                     semSend.acquire();
                     pendingMessageIds.add(i);
                     producer.send(i);
-                    log.info("DMISCA sent message {}", i);
                 }
             } catch (Exception e) {
-                log.error("DMISCA Error sending message", e);
                 throw new CompletionException(e);
             }
-        }, threadPool).orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
+        }, threadPool).orTimeout(TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
         var consumerFuture = CompletableFuture.runAsync(() -> {
             while (!producerFuture.isDone() || !pendingMessageIds.isEmpty()) {
-                log.info("DMISCA receive loop: producerFuture.isDone: {}, pendingMessageIds: {}",
-                        producerFuture.isDone(), pendingMessageIds);
                 try {
-                    log.info("DMISCA receiving message");
                     var recvMessage = consumer.receive(1_500, TimeUnit.MILLISECONDS);
-                    log.info("DMISCA received message {}", Optional.ofNullable(recvMessage).map(Message::getValue));
                     if (recvMessage != null) {
                         consumer.acknowledge(recvMessage);
                         pendingMessageIds.remove(recvMessage.getValue());
                     }
                 } catch (PulsarClientException e) {
-                    log.error("DMISCA error receiving message, retrying", e);
                     // Retry
                 }
             }
-        }, threadPool).orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
+        }, threadPool).orTimeout(TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
         var unloadFuture = CompletableFuture.runAsync(() -> {
             try {
@@ -229,7 +207,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
-        }, threadPool).orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
+        }, threadPool).orTimeout(TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
         cdl.countDown();
 
