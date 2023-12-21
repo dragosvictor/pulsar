@@ -53,7 +53,8 @@ public interface LookupService extends AutoCloseable {
      *
      * @param topicName
      *            topic-name
-     * @return a pair of addresses, representing the logical and physical address of the broker that serves given topic
+     * @return a {@link LookupTopicResult} representing the logical and physical address of the broker that serves the
+     *         given topic, as well as proxying information.
      */
     CompletableFuture<LookupTopicResult> getBroker(TopicName topicName);
 

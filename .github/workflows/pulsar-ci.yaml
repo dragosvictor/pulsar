@@ -315,7 +315,7 @@ jobs:
 
       - name: Run unit test group '${{ matrix.group }}'
         run: |
-          CHANGED_TESTS="${{ needs.preconditions.outputs.tests_files }}" ./build/run_unit_group.sh ${{ matrix.group }} -Dmaven.test.redirectTestOutputToFile=true
+          CHANGED_TESTS="${{ needs.preconditions.outputs.tests_files }}" ./build/run_unit_group.sh ${{ matrix.group }}
 
       - name: Upload coverage to build artifacts
         if: ${{ needs.preconditions.outputs.collect_coverage == 'true' }}
