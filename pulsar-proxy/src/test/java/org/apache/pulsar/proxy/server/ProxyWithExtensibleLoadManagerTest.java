@@ -114,14 +114,14 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         try {
             return Mockito.spy((PulsarClientImpl) PulsarClient.builder().
                     serviceUrl(proxyService.getServiceUrl()).
-                    operationTimeout(1, TimeUnit.HOURS).
+                    operationTimeout(TIMEOUT_MS, TimeUnit.MILLISECONDS).
                     build());
         } catch (PulsarClientException e) {
             throw new CompletionException(e);
         }
     }
 
-    private static final long TIMEOUT_MS = 1_200_000;
+    private static final int TIMEOUT_MS = 1_200_000;
 
     @Test(timeOut = TIMEOUT_MS, invocationCount = 100, skipFailedInvocations = true)
     public void testProxyProduceConsume() throws Exception {
