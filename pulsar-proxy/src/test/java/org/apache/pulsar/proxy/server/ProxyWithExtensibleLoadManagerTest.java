@@ -50,6 +50,7 @@ import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Schema;
+import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.impl.LookupService;
 import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.common.configuration.PulsarConfigurationLoader;
@@ -166,7 +167,9 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
 
         @Cleanup
         var consumer = consumerClient.newConsumer(Schema.INT32).topic(topicName.toString()).
-                subscriptionName(BrokerTestUtil.newUniqueName("my-sub")).subscribe();
+                subscriptionInitialPosition(SubscriptionInitialPosition.Earliest).
+                subscriptionName(BrokerTestUtil.newUniqueName("my-sub")).
+                subscribe();
         log.info("DMISCA created consumer");
         var consumerLookupServiceSpy = spyLookupService(consumerClient);
 
