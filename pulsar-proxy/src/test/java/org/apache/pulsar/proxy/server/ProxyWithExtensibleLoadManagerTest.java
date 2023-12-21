@@ -49,6 +49,7 @@ import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
+import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.impl.LookupService;
 import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.common.configuration.PulsarConfigurationLoader;
@@ -155,7 +156,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         log.info("DMISCA created producer client");
 
         @Cleanup
-        var producer = producerClient.newProducer().topic(topicName.toString()).create();
+        var producer = producerClient.newProducer(Schema.INT32).topic(topicName.toString()).create();
         log.info("DMISCA created producer");
         var producerLookupServiceSpy = spyLookupService(producerClient);
 
@@ -164,7 +165,7 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         log.info("DMISCA created consumer client");
 
         @Cleanup
-        var consumer = consumerClient.newConsumer().topic(topicName.toString()).
+        var consumer = consumerClient.newConsumer(Schema.INT32).topic(topicName.toString()).
                 subscriptionName(BrokerTestUtil.newUniqueName("my-sub")).subscribe();
         log.info("DMISCA created consumer");
         var consumerLookupServiceSpy = spyLookupService(consumerClient);
@@ -176,14 +177,14 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
         var messagesBeforeUnload = 100;
         var messagesAfterUnload = 100;
 
-        var pendingMessageIds = Collections.synchronizedSet(new HashSet<MessageId>());
+        var pendingMessageIds = Collections.synchronizedSet(new HashSet<Integer>());
         var producerFuture = CompletableFuture.runAsync(() -> {
             try {
                 for (int i = 0; i < messagesBeforeUnload + messagesAfterUnload; i++) {
                     log.info("DMISCA sending message {}", i);
                     semSend.acquire();
-                    var messageId = producer.send(("test" + i).getBytes());
-                    pendingMessageIds.add(messageId);
+                    var messageId = producer.send(i);
+                    pendingMessageIds.add(i);
                     log.info("DMISCA sent message {}", messageId);
                 }
             } catch (Exception e) {
@@ -199,10 +200,9 @@ public class ProxyWithExtensibleLoadManagerTest extends MultiBrokerBaseTest {
                 try {
                     log.info("DMISCA receiving message");
                     var recvMessage = consumer.receive(1_000, TimeUnit.MILLISECONDS);
-                    log.info("DMISCA received message {}", Optional.ofNullable(recvMessage).map(Message::getMessageId));
+                    log.info("DMISCA received message {}", Optional.ofNullable(recvMessage).map(Message::getValue));
                     if (recvMessage != null) {
-                        var recvMessageId = recvMessage.getMessageId();
-                        pendingMessageIds.remove(recvMessageId);
+                        pendingMessageIds.remove(recvMessage.getValue());
                         consumer.acknowledge(recvMessage);
                     }
                 } catch (PulsarClientException e) {
