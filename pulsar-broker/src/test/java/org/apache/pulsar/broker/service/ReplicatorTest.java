@@ -19,15 +19,16 @@
 package org.apache.pulsar.broker.service;
 
 import static org.apache.pulsar.broker.BrokerTestUtil.newUniqueName;
-import static org.apache.pulsar.broker.auth.MockedPulsarServiceBaseTest.retryStrategically;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.expectThrows;
 import static org.testng.Assert.fail;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -39,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
@@ -48,10 +50,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -1438,9 +1442,8 @@ public class ReplicatorTest extends ReplicatorTestBase {
         nonPersistentProducer2.close();
     }
 
-    @Test
+    @Test(timeOut = 30_000, invocationCount = 100, skipFailedInvocations = true)
     public void testCleanupTopic() throws Exception {
-
         final String cluster1 = pulsar1.getConfig().getClusterName();
         final String cluster2 = pulsar2.getConfig().getClusterName();
         final String namespace = "pulsar/ns-" + System.nanoTime();
@@ -1465,53 +1468,31 @@ public class ReplicatorTest extends ReplicatorTestBase {
         CompletableFuture<ManagedLedgerImpl> mlFuture = new CompletableFuture<>();
         ledgers.put(topicMlName, mlFuture);
 
-        try {
-            Consumer<byte[]> consumer = client1.newConsumer().topic(topicName).subscriptionType(SubscriptionType.Shared)
-                    .subscriptionName("my-subscriber-name").subscribeAsync().get(100, TimeUnit.MILLISECONDS);
-            fail("consumer should fail due to topic loading failure");
-        } catch (Exception e) {
-            // Ok
-        }
+        var consumerBuilder = client1.newConsumer().topic(topicName).subscriptionType(SubscriptionType.Shared)
+                .subscriptionName("my-subscriber-name");
+        expectThrows(TimeoutException.class, () -> consumerBuilder.subscribeAsync().get(100, TimeUnit.MILLISECONDS));
 
-        CompletableFuture<Optional<Topic>> topicFuture = null;
-        for (int i = 0; i < 5; i++) {
-            topicFuture = pulsar1.getBrokerService().getTopics().get(topicName);
-            if (topicFuture != null) {
-                break;
-            }
-            Thread.sleep(i * 1000);
-        }
+        // Wait for the topic future to be inserted into the topic cache.
+        var topicFuture = Awaitility.waitAtMost(3, TimeUnit.SECONDS).pollInterval(100, TimeUnit.MILLISECONDS)
+                .until(() -> pulsar1.getBrokerService().getTopics().get(topicName), Objects::nonNull);
 
-        try {
-            topicFuture.get();
-            fail("topic creation should fail");
-        } catch (Exception e) {
-            // Ok
-        }
+        var topicLoadException = expectThrows(ExecutionException.class, topicFuture::get);
+        assertTrue(topicLoadException.getCause() instanceof TimeoutException);
 
-        final CompletableFuture<Optional<Topic>> timedOutTopicFuture = topicFuture;
-        // timeout topic future should be removed from cache
-        retryStrategically((test) -> pulsar1.getBrokerService().getTopic(topicName, false) != timedOutTopicFuture, 5,
-                1000);
+        // Timeout topic future should be removed from cache
+        Awaitility.waitAtMost(3, TimeUnit.SECONDS).pollInterval(100, TimeUnit.MILLISECONDS)
+                .until(() -> pulsar1.getBrokerService().getTopic(topicName, false) != topicFuture);
+        assertNotEquals(topicFuture, pulsar1.getBrokerService().getTopics().get(topicName));
 
-        assertNotEquals(timedOutTopicFuture, pulsar1.getBrokerService().getTopics().get(topicName));
+        expectThrows(TimeoutException.class, () -> consumerBuilder.subscribeAsync().get(100, TimeUnit.MILLISECONDS));
 
-        try {
-            Consumer<byte[]> consumer = client1.newConsumer().topic(topicName).subscriptionType(SubscriptionType.Shared)
-                    .subscriptionName("my-subscriber-name").subscribeAsync().get(100, TimeUnit.MILLISECONDS);
-            fail("consumer should fail due to topic loading failure");
-        } catch (Exception e) {
-            // Ok
-        }
+        assertFalse(mlFuture.isDone());
 
         ManagedLedgerImpl ml = (ManagedLedgerImpl) mlFactory.open(topicMlName + "-2");
         mlFuture.complete(ml);
 
-        Consumer<byte[]> consumer = client1.newConsumer().topic(topicName).subscriptionName("my-subscriber-name")
-                .subscriptionType(SubscriptionType.Shared).subscribeAsync()
-                .get(2 * topicLoadTimeoutSeconds, TimeUnit.SECONDS);
-
-        consumer.close();
+        @Cleanup
+        var consumer = consumerBuilder.subscribeAsync().get(2 * topicLoadTimeoutSeconds, TimeUnit.SECONDS);
     }
 
 
