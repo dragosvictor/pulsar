@@ -21,6 +21,7 @@ package org.apache.pulsar.broker.loadbalance.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.ConcurrentModificationException;
@@ -188,6 +189,16 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
     private final Set<String> knownBrokers = new HashSet<>();
     private Map<String, String> bundleBrokerAffinityMap;
 
+    /** @deprecated Use {@link #selectBrokerForAssignmentHistogram} instead. */
+    private static final Summary selectBrokerForAssignment = Summary.build(
+                    "pulsar_broker_load_manager_bundle_assigment", "-")
+            .quantile(0.50)
+            .quantile(0.99)
+            .quantile(0.999)
+            .quantile(1.0)
+            .register();
+    private DoubleHistogram selectBrokerForAssignmentHistogram;
+
     /**
      * Initializes fields which do not depend on PulsarService. initialize(PulsarService) should subsequently be called.
      */
@@ -233,6 +244,10 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
     public void initialize(final PulsarService pulsar) {
         this.pulsar = pulsar;
         this.pulsarResources = pulsar.getPulsarResources();
+        this.selectBrokerForAssignmentHistogram = pulsar.getOpenTelemetry().getMeter()
+                .histogramBuilder("pulsar.broker.load.manager.bundle.assigment")
+                .setDescription("Latencies of bundles assignment operations")
+                .build();
         brokersData = pulsar.getCoordinationService().getLockManager(LocalBrokerData.class);
         pulsar.getLocalMetadataStore().registerListener(this::handleDataNotification);
         pulsar.getLocalMetadataStore().registerSessionListener(this::handleMetadataSessionEvent);
@@ -806,14 +821,6 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
         this.bundleSplitMetrics.set(metrics);
     }
 
-    private static final Summary selectBrokerForAssignment = Summary.build(
-            "pulsar_broker_load_manager_bundle_assigment", "-")
-            .quantile(0.50)
-            .quantile(0.99)
-            .quantile(0.999)
-            .quantile(1.0)
-            .register();
-
     /**
      * As the leader broker, find a suitable broker for the assignment of the given bundle.
      *
@@ -844,7 +851,9 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
                 return broker;
             }
         } finally {
-            selectBrokerForAssignment.observe(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
+            var latencyNs = System.nanoTime() - startTime;
+            selectBrokerForAssignment.observe(latencyNs, TimeUnit.NANOSECONDS);
+            selectBrokerForAssignmentHistogram.record(latencyNs / 1_000_000_000.0);
         }
     }
 
