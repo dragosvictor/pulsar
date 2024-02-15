@@ -21,6 +21,7 @@ package org.apache.pulsar.opentelemetry;
 import static com.google.common.base.Preconditions.checkArgument;
 import com.google.common.annotations.VisibleForTesting;
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk;
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdkBuilder;
@@ -43,6 +44,9 @@ public class OpenTelemetryService implements Closeable {
     static final int MAX_CARDINALITY_LIMIT = 10000;
 
     private final OpenTelemetrySdk openTelemetrySdk;
+
+    @Metric
+    private final LongCounter dummyCounter = null;
 
     /**
      * Instantiates the OpenTelemetry SDK. All attributes are overridden by system properties or environment
