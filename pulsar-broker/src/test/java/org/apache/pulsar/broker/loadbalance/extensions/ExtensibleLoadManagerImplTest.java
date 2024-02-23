@@ -38,6 +38,8 @@ import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecis
 import static org.apache.pulsar.broker.namespace.NamespaceService.getHeartbeatNamespace;
 import static org.apache.pulsar.broker.namespace.NamespaceService.getHeartbeatNamespaceV2;
 import static org.apache.pulsar.broker.namespace.NamespaceService.getSLAMonitorNamespace;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -98,6 +100,7 @@ import org.apache.pulsar.broker.loadbalance.extensions.models.UnloadCounter;
 import org.apache.pulsar.broker.loadbalance.extensions.reporter.BrokerLoadDataReporter;
 import org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder;
 import org.apache.pulsar.broker.loadbalance.extensions.store.LoadDataStore;
+import org.apache.pulsar.broker.loadbalance.extensions.strategy.BrokerSelectionStrategy;
 import org.apache.pulsar.broker.loadbalance.impl.ModularLoadManagerImpl;
 import org.apache.pulsar.broker.lookup.LookupResult;
 import org.apache.pulsar.broker.namespace.LookupOptions;
@@ -246,11 +249,19 @@ public class ExtensibleLoadManagerImplTest extends MockedPulsarServiceBaseTest {
         assertEquals(brokerLookupData1.get().getWebServiceUrl(), currentLeader.get().getServiceUrl());
     }
 
-    @Test
+    @Test(invocationCount = 100, skipFailedInvocations = true)
     public void testAssign() throws Exception {
         Pair<TopicName, NamespaceBundle> topicAndBundle = getBundleIsNotOwnByChangeEventTopic("test-assign");
         TopicName topicName = topicAndBundle.getLeft();
         NamespaceBundle bundle = topicAndBundle.getRight();
+
+        var primaryBrokerSelectionStrategySpy = spy((BrokerSelectionStrategy)
+                FieldUtils.readDeclaredField(primaryLoadManager, "brokerSelectionStrategy", true));
+        doReturn(primaryBrokerSelectionStrategySpy).when(primaryLoadManager).getBrokerSelectionStrategy();
+        var secondaryBrokerSelectionStrategySpy = spy((BrokerSelectionStrategy)
+                FieldUtils.readDeclaredField(secondaryLoadManager, "brokerSelectionStrategy", true));
+        doReturn(secondaryBrokerSelectionStrategySpy).when(secondaryLoadManager).getBrokerSelectionStrategy();
+
         Optional<BrokerLookupData> brokerLookupData = primaryLoadManager.assign(Optional.empty(), bundle).get();
         assertTrue(brokerLookupData.isPresent());
         log.info("Assign the bundle {} to {}", bundle, brokerLookupData);
@@ -258,8 +269,8 @@ public class ExtensibleLoadManagerImplTest extends MockedPulsarServiceBaseTest {
         Optional<BrokerLookupData> brokerLookupData1 = secondaryLoadManager.assign(Optional.empty(), bundle).get();
         assertEquals(brokerLookupData, brokerLookupData1);
 
-        verify(primaryLoadManager, times(1)).getBrokerSelectionStrategy();
-        verify(secondaryLoadManager, times(0)).getBrokerSelectionStrategy();
+        verify(primaryBrokerSelectionStrategySpy, times(1)).select(any(), eq(bundle), any());
+        verify(secondaryBrokerSelectionStrategySpy, times(0)).select(any(), eq(bundle), any());
 
         Optional<LookupResult> lookupResult = pulsar2.getNamespaceService()
                 .getBrokerServiceUrlAsync(topicName, null).get();
