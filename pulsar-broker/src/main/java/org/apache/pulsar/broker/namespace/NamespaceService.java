@@ -105,6 +105,7 @@ import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.collections.ConcurrentOpenHashMap;
 import org.apache.pulsar.metadata.api.MetadataCache;
 import org.apache.pulsar.metadata.api.MetadataStoreException;
+import org.apache.pulsar.opentelemetry.Metric;
 import org.apache.pulsar.opentelemetry.annotations.PulsarDeprecatedMetric;
 import org.apache.pulsar.policies.data.loadbalancer.AdvertisedListener;
 import org.apache.pulsar.policies.data.loadbalancer.LocalBrokerData;
@@ -350,6 +351,8 @@ public class NamespaceService implements AutoCloseable {
                 }
                 return CompletableFuture.completedFuture(Optional.empty());
             }
+
+            @Metric
             CompletableFuture<Optional<LookupResult>> future =
                     ExtensibleLoadManagerImpl.isLoadManagerExtensionEnabled(config)
                     ? loadManager.get().findBrokerServiceUrl(Optional.ofNullable(topic), bundle) :
