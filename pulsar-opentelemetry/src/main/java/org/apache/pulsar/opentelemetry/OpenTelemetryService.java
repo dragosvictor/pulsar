@@ -40,7 +40,7 @@ import org.apache.commons.lang3.StringUtils;
  */
 public class OpenTelemetryService implements Closeable {
 
-    static final String OTEL_SDK_DISABLED_KEY = "otel.sdk.disabled";
+    public static final String OTEL_SDK_DISABLED_KEY = "otel.sdk.disabled";
     static final int MAX_CARDINALITY_LIMIT = 10000;
 
     private final OpenTelemetrySdk openTelemetrySdk;
@@ -58,14 +58,14 @@ public class OpenTelemetryService implements Closeable {
      *      The name of the service. Optional.
      * @param serviceVersion
      *      The version of the service. Optional.
-     * @param sdkBuilderConsumer
+     * @param builderCustomizer
      *      Allows customizing the SDK builder; for testing purposes only.
      */
     @Builder
     public OpenTelemetryService(String clusterName,
                                 String serviceName,
                                 String serviceVersion,
-                                @VisibleForTesting Consumer<AutoConfiguredOpenTelemetrySdkBuilder> sdkBuilderConsumer) {
+                                @VisibleForTesting Consumer<AutoConfiguredOpenTelemetrySdkBuilder> builderCustomizer) {
         checkArgument(StringUtils.isNotBlank(clusterName), "Cluster name cannot be empty");
         var sdkBuilder = AutoConfiguredOpenTelemetrySdk.builder();
 
@@ -94,8 +94,8 @@ public class OpenTelemetryService implements Closeable {
                     return resource.merge(resourceBuilder.build());
                 });
 
-        if (sdkBuilderConsumer != null) {
-            sdkBuilderConsumer.accept(sdkBuilder);
+        if (builderCustomizer != null) {
+            builderCustomizer.accept(sdkBuilder);
         }
 
         openTelemetrySdk = sdkBuilder.build().getOpenTelemetrySdk();

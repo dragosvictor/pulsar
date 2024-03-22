@@ -167,7 +167,9 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     private volatile MessageIdAdv startMessageId;
 
     private volatile MessageIdAdv seekMessageId;
-    private final AtomicBoolean duringSeek;
+    @VisibleForTesting
+    final AtomicReference<SeekStatus> seekStatus;
+    private volatile CompletableFuture<Void> seekFuture;
 
     private final MessageIdAdv initialStartMessageId;
 
@@ -304,7 +306,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             stats = ConsumerStatsDisabled.INSTANCE;
         }
 
-        duringSeek = new AtomicBoolean(false);
+        seekStatus = new AtomicReference<>(SeekStatus.NOT_STARTED);
 
         // Create msgCrypto if not created already
         if (conf.getCryptoKeyReader() != null) {
@@ -774,6 +776,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     @Override
     public CompletableFuture<Void> connectionOpened(final ClientCnx cnx) {
         previousExceptions.clear();
+        getConnectionHandler().setMaxMessageSize(cnx.getMaxMessageSize());
 
         final State state = getState();
         if (state == State.Closing || state == State.Closed) {
@@ -781,7 +784,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             closeConsumerTasks();
             deregisterFromClientCnx();
             client.cleanupConsumer(this);
-            clearReceiverQueue();
+            clearReceiverQueue(false);
             return CompletableFuture.completedFuture(null);
         }
 
@@ -789,7 +792,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 topic, subscription, cnx.ctx().channel(), consumerId);
 
         long requestId = client.newRequestId();
-        if (duringSeek.get()) {
+        if (seekStatus.get() != SeekStatus.NOT_STARTED) {
             acknowledgmentsGroupingTracker.flushAndClean();
         }
 
@@ -800,7 +803,8 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         int currentSize;
         synchronized (this) {
             currentSize = incomingMessages.size();
-            startMessageId = clearReceiverQueue();
+            setClientCnx(cnx);
+            clearReceiverQueue(true);
             if (possibleSendToDeadLetterTopicMessages != null) {
                 possibleSendToDeadLetterTopicMessages.clear();
             }
@@ -838,7 +842,6 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         // synchronized this, because redeliverUnAckMessage eliminate the epoch inconsistency between them
         final CompletableFuture<Void> future = new CompletableFuture<>();
         synchronized (this) {
-            setClientCnx(cnx);
             ByteBuf request = Commands.newSubscribe(topic, subscription, consumerId, requestId, getSubType(),
                     priorityLevel, consumerName, isDurable, startMessageIdData, metadata, readCompacted,
                     conf.isReplicateSubscriptionState(),
@@ -943,15 +946,24 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
      * Clear the internal receiver queue and returns the message id of what was the 1st message in the queue that was
      * not seen by the application.
      */
-    private MessageIdAdv clearReceiverQueue() {
+    private void clearReceiverQueue(boolean updateStartMessageId) {
         List<Message<?>> currentMessageQueue = new ArrayList<>(incomingMessages.size());
         incomingMessages.drainTo(currentMessageQueue);
         resetIncomingMessageSize();
 
-        if (duringSeek.compareAndSet(true, false)) {
-            return seekMessageId;
+        CompletableFuture<Void> seekFuture = this.seekFuture;
+        MessageIdAdv seekMessageId = this.seekMessageId;
+
+        if (seekStatus.get() != SeekStatus.NOT_STARTED) {
+            if (updateStartMessageId) {
+                startMessageId = seekMessageId;
+            }
+            if (seekStatus.compareAndSet(SeekStatus.COMPLETED, SeekStatus.NOT_STARTED)) {
+                internalPinnedExecutor.execute(() -> seekFuture.complete(null));
+            }
+            return;
         } else if (subscriptionMode == SubscriptionMode.Durable) {
-            return startMessageId;
+            return;
         }
 
         if (!currentMessageQueue.isEmpty()) {
@@ -968,15 +980,14 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             }
             // release messages if they are pooled messages
             currentMessageQueue.forEach(Message::release);
-            return previousMessage;
-        } else if (!lastDequeuedMessageId.equals(MessageId.earliest)) {
+            if (updateStartMessageId) {
+                startMessageId = previousMessage;
+            }
+        } else if (updateStartMessageId && !lastDequeuedMessageId.equals(MessageId.earliest)) {
             // If the queue was empty we need to restart from the message just after the last one that has been dequeued
             // in the past
-            return new BatchMessageIdImpl((MessageIdImpl) lastDequeuedMessageId);
-        } else {
-            // No message was received or dequeued by this consumer. Next message would still be the startMessageId
-            return startMessageId;
-        }
+            startMessageId = new BatchMessageIdImpl((MessageIdImpl) lastDequeuedMessageId);
+        } // else: No message was received or dequeued by this consumer. Next message would still be the startMessageId
     }
 
     /**
@@ -1192,7 +1203,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 return null;
             }
 
-            if (ackBitSet != null && !ackBitSet.get(index)) {
+            if (isSingleMessageAcked(ackBitSet, index)) {
                 return null;
             }
 
@@ -1643,7 +1654,14 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                         singleMessageMetadata, uncompressedPayload, batchMessage, schema, true,
                         ackBitSet, ackSetInMessageId, redeliveryCount, consumerEpoch);
                 if (message == null) {
-                    skippedMessages++;
+                    // If it is not in ackBitSet, it means Broker does not want to deliver it to the client, and
+                    // did not decrease the permits in the broker-side.
+                    // So do not acquire more permits for this message.
+                    // Why not skip this single message in the first line of for-loop block? We need call
+                    // "newSingleMessage" to move "payload.readerIndex" to a correct value to get the correct data.
+                    if (!isSingleMessageAcked(ackBitSet, i)) {
+                        skippedMessages++;
+                    }
                     continue;
                 }
                 if (possibleToDeadLetter != null) {
@@ -1879,7 +1897,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         CompressionCodec codec = CompressionCodecProvider.getCompressionCodec(compressionType);
         int uncompressedSize = msgMetadata.getUncompressedSize();
         int payloadSize = payload.readableBytes();
-        if (checkMaxMessageSize && payloadSize > ClientCnx.getMaxMessageSize()) {
+        if (checkMaxMessageSize && payloadSize > getConnectionHandler().getMaxMessageSize()) {
             // payload size is itself corrupted since it cannot be bigger than the MaxMessageSize
             log.error("[{}][{}] Got corrupted payload message size {} at {}", topic, subscription, payloadSize,
                     messageId);
@@ -2242,25 +2260,23 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 .setMandatoryStop(0, TimeUnit.MILLISECONDS)
                 .create();
 
-        CompletableFuture<Void> seekFuture = new CompletableFuture<>();
-        seekAsyncInternal(requestId, seek, seekId, seekBy, backoff, opTimeoutMs, seekFuture);
+        if (!seekStatus.compareAndSet(SeekStatus.NOT_STARTED, SeekStatus.IN_PROGRESS)) {
+            final String message = String.format(
+                    "[%s][%s] attempting to seek operation that is already in progress (seek by %s)",
+                    topic, subscription, seekBy);
+            log.warn("[{}][{}] Attempting to seek operation that is already in progress, cancelling {}",
+                    topic, subscription, seekBy);
+            return FutureUtil.failedFuture(new IllegalStateException(message));
+        }
+        seekFuture = new CompletableFuture<>();
+        seekAsyncInternal(requestId, seek, seekId, seekBy, backoff, opTimeoutMs);
         return seekFuture;
     }
 
     private void seekAsyncInternal(long requestId, ByteBuf seek, MessageId seekId, String seekBy,
-                                   final Backoff backoff, final AtomicLong remainingTime,
-                                   CompletableFuture<Void> seekFuture) {
+                                   final Backoff backoff, final AtomicLong remainingTime) {
         ClientCnx cnx = cnx();
         if (isConnected() && cnx != null) {
-            if (!duringSeek.compareAndSet(false, true)) {
-                final String message = String.format(
-                        "[%s][%s] attempting to seek operation that is already in progress (seek by %s)",
-                        topic, subscription, seekBy);
-                log.warn("[{}][{}] Attempting to seek operation that is already in progress, cancelling {}",
-                        topic, subscription, seekBy);
-                seekFuture.completeExceptionally(new IllegalStateException(message));
-                return;
-            }
             MessageIdAdv originSeekMessageId = seekMessageId;
             seekMessageId = (MessageIdAdv) seekId;
             log.info("[{}][{}] Seeking subscription to {}", topic, subscription, seekBy);
@@ -2272,14 +2288,25 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 lastDequeuedMessageId = MessageId.earliest;
 
                 clearIncomingMessages();
-                seekFuture.complete(null);
+                CompletableFuture<Void> future = null;
+                synchronized (this) {
+                    if (!hasParentConsumer && cnx() == null) {
+                        // It's during reconnection, complete the seek future after connection is established
+                        seekStatus.set(SeekStatus.COMPLETED);
+                    } else {
+                        future = seekFuture;
+                        startMessageId = seekMessageId;
+                        seekStatus.set(SeekStatus.NOT_STARTED);
+                    }
+                }
+                if (future != null) {
+                    future.complete(null);
+                }
             }).exceptionally(e -> {
-                // re-set duringSeek and seekMessageId if seek failed
                 seekMessageId = originSeekMessageId;
-                duringSeek.set(false);
                 log.error("[{}][{}] Failed to reset subscription: {}", topic, subscription, e.getCause().getMessage());
 
-                seekFuture.completeExceptionally(
+                failSeek(
                         PulsarClientException.wrap(e.getCause(),
                                 String.format("Failed to seek the subscription %s of the topic %s to %s",
                                         subscription, topicName.toString(), seekBy)));
@@ -2288,7 +2315,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         } else {
             long nextDelay = Math.min(backoff.next(), remainingTime.get());
             if (nextDelay <= 0) {
-                seekFuture.completeExceptionally(
+                failSeek(
                         new PulsarClientException.TimeoutException(
                                 String.format("The subscription %s of the topic %s could not seek "
                                         + "withing configured timeout", subscription, topicName.toString())));
@@ -2299,8 +2326,15 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 log.warn("[{}] [{}] Could not get connection while seek -- Will try again in {} ms",
                         topic, getHandlerName(), nextDelay);
                 remainingTime.addAndGet(-nextDelay);
-                seekAsyncInternal(requestId, seek, seekId, seekBy, backoff, remainingTime, seekFuture);
+                seekAsyncInternal(requestId, seek, seekId, seekBy, backoff, remainingTime);
             }, nextDelay, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private void failSeek(Throwable throwable) {
+        CompletableFuture<Void> seekFuture = this.seekFuture;
+        if (seekStatus.compareAndSet(SeekStatus.IN_PROGRESS, SeekStatus.NOT_STARTED)) {
+            seekFuture.completeExceptionally(throwable);
         }
     }
 
@@ -2961,4 +2995,10 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
     private static final Logger log = LoggerFactory.getLogger(ConsumerImpl.class);
 
+    @VisibleForTesting
+    enum SeekStatus {
+        NOT_STARTED,
+        IN_PROGRESS,
+        COMPLETED
+    }
 }

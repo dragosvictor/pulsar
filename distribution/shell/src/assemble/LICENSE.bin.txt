@@ -310,6 +310,9 @@ This projects includes binary packages with the following licenses:
 
 The Apache Software License, Version 2.0
  * JCommander -- jcommander-1.82.jar
+ * Picocli
+     - picocli-4.7.5.jar
+     - picocli-shell-jline3-4.7.5.jar
  * Jackson
      - jackson-annotations-2.14.2.jar
      - jackson-core-2.14.2.jar
@@ -342,7 +345,7 @@ The Apache Software License, Version 2.0
     - commons-logging-1.2.jar
     - commons-lang3-3.11.jar
     - commons-text-1.10.0.jar
-    - commons-compress-1.21.jar
+    - commons-compress-1.26.0.jar
  * Netty
     - netty-buffer-4.1.105.Final.jar
     - netty-codec-4.1.105.Final.jar
@@ -395,14 +398,14 @@ The Apache Software License, Version 2.0
     - async-http-client-2.12.1.jar
     - async-http-client-netty-utils-2.12.1.jar
  * Jetty
-    - jetty-client-9.4.53.v20231009.jar
-    - jetty-http-9.4.53.v20231009.jar
-    - jetty-io-9.4.53.v20231009.jar
-    - jetty-util-9.4.53.v20231009.jar
-    - javax-websocket-client-impl-9.4.53.v20231009.jar
-    - websocket-api-9.4.53.v20231009.jar
-    - websocket-client-9.4.53.v20231009.jar
-    - websocket-common-9.4.53.v20231009.jar
+    - jetty-client-9.4.54.v20240208.jar
+    - jetty-http-9.4.54.v20240208.jar
+    - jetty-io-9.4.54.v20240208.jar
+    - jetty-util-9.4.54.v20240208.jar
+    - javax-websocket-client-impl-9.4.54.v20240208.jar
+    - websocket-api-9.4.54.v20240208.jar
+    - websocket-client-9.4.54.v20240208.jar
+    - websocket-common-9.4.54.v20240208.jar
  * SnakeYaml -- snakeyaml-2.0.jar
  * Google Error Prone Annotations - error_prone_annotations-2.24.0.jar
  * Javassist -- javassist-3.25.0-GA.jar
@@ -438,13 +441,13 @@ CDDL-1.1 -- ../licenses/LICENSE-CDDL-1.1.txt
     - aopalliance-repackaged-2.6.1.jar
     - osgi-resource-locator-1.0.3.jar
  * Jersey
-    - jersey-client-2.34.jar
-    - jersey-common-2.34.jar
-    - jersey-entity-filtering-2.34.jar
-    - jersey-media-json-jackson-2.34.jar
-    - jersey-media-multipart-2.34.jar
-    - jersey-hk2-2.34.jar
- * Mimepull -- mimepull-1.9.13.jar
+    - jersey-client-2.41.jar
+    - jersey-common-2.41.jar
+    - jersey-entity-filtering-2.41.jar
+    - jersey-media-json-jackson-2.41.jar
+    - jersey-media-multipart-2.41.jar
+    - jersey-hk2-2.41.jar
+ * Mimepull -- mimepull-1.9.15.jar
 
 Eclipse Distribution License 1.0 -- ../licenses/LICENSE-EDL-1.0.txt
  * Jakarta Activation

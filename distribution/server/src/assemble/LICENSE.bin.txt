@@ -244,6 +244,9 @@ This projects includes binary packages with the following licenses:
 
 The Apache Software License, Version 2.0
  * JCommander -- com.beust-jcommander-1.82.jar
+ * Picocli
+     - info.picocli-picocli-4.7.5.jar
+     - info.picocli-picocli-shell-jline3-4.7.5.jar
  * High Performance Primitive Collections for Java -- com.carrotsearch-hppc-0.9.1.jar
  * Jackson
      - com.fasterxml.jackson.core-jackson-annotations-2.14.2.jar
@@ -260,7 +263,7 @@ The Apache Software License, Version 2.0
  * Caffeine -- com.github.ben-manes.caffeine-caffeine-2.9.1.jar
  * Conscrypt -- org.conscrypt-conscrypt-openjdk-uber-2.5.2.jar
  * Proto Google Common Protos -- com.google.api.grpc-proto-google-common-protos-2.9.0.jar
- * Bitbucket -- org.bitbucket.b_c-jose4j-0.9.3.jar
+ * Bitbucket -- org.bitbucket.b_c-jose4j-0.9.4.jar
  * Gson
     - com.google.code.gson-gson-2.8.9.jar
     - io.gsonfire-gson-fire-1.8.5.jar
@@ -285,7 +288,7 @@ The Apache Software License, Version 2.0
     - commons-lang-commons-lang-2.6.jar
     - commons-logging-commons-logging-1.1.1.jar
     - org.apache.commons-commons-collections4-4.4.jar
-    - org.apache.commons-commons-compress-1.21.jar
+    - org.apache.commons-commons-compress-1.26.0.jar
     - org.apache.commons-commons-lang3-3.11.jar
     - org.apache.commons-commons-text-1.10.0.jar
  * Netty
@@ -389,25 +392,25 @@ The Apache Software License, Version 2.0
     - org.asynchttpclient-async-http-client-2.12.1.jar
     - org.asynchttpclient-async-http-client-netty-utils-2.12.1.jar
  * Jetty
-    - org.eclipse.jetty-jetty-client-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-continuation-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-http-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-io-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-proxy-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-security-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-server-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-servlet-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-servlets-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-util-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-util-ajax-9.4.53.v20231009.jar
-    - org.eclipse.jetty.websocket-javax-websocket-client-impl-9.4.53.v20231009.jar
-    - org.eclipse.jetty.websocket-websocket-api-9.4.53.v20231009.jar
-    - org.eclipse.jetty.websocket-websocket-client-9.4.53.v20231009.jar
-    - org.eclipse.jetty.websocket-websocket-common-9.4.53.v20231009.jar
-    - org.eclipse.jetty.websocket-websocket-server-9.4.53.v20231009.jar
-    - org.eclipse.jetty.websocket-websocket-servlet-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-alpn-conscrypt-server-9.4.53.v20231009.jar
-    - org.eclipse.jetty-jetty-alpn-server-9.4.53.v20231009.jar
+    - org.eclipse.jetty-jetty-client-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-continuation-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-http-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-io-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-proxy-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-security-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-server-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-servlet-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-servlets-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-util-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-util-ajax-9.4.54.v20240208.jar
+    - org.eclipse.jetty.websocket-javax-websocket-client-impl-9.4.54.v20240208.jar
+    - org.eclipse.jetty.websocket-websocket-api-9.4.54.v20240208.jar
+    - org.eclipse.jetty.websocket-websocket-client-9.4.54.v20240208.jar
+    - org.eclipse.jetty.websocket-websocket-common-9.4.54.v20240208.jar
+    - org.eclipse.jetty.websocket-websocket-server-9.4.54.v20240208.jar
+    - org.eclipse.jetty.websocket-websocket-servlet-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-alpn-conscrypt-server-9.4.54.v20240208.jar
+    - org.eclipse.jetty-jetty-alpn-server-9.4.54.v20240208.jar
  * SnakeYaml -- org.yaml-snakeyaml-2.0.jar
  * RocksDB - org.rocksdb-rocksdbjni-7.9.2.jar
  * Google Error Prone Annotations - com.google.errorprone-error_prone_annotations-2.24.0.jar
@@ -452,6 +455,10 @@ The Apache Software License, Version 2.0
   * Jodah
     - net.jodah-typetools-0.5.0.jar
     - net.jodah-failsafe-2.4.4.jar
+  * Byte Buddy
+    - net.bytebuddy-byte-buddy-1.14.12.jar
+  * zt-zip
+    - org.zeroturnaround-zt-zip-1.17.jar
   * Apache Avro
     - org.apache.avro-avro-1.11.3.jar
     - org.apache.avro-avro-protobuf-1.11.3.jar
@@ -488,9 +495,9 @@ The Apache Software License, Version 2.0
     - io.vertx-vertx-web-common-4.3.8.jar
     - io.vertx-vertx-grpc-4.3.5.jar
   * Apache ZooKeeper
-    - org.apache.zookeeper-zookeeper-3.9.1.jar
-    - org.apache.zookeeper-zookeeper-jute-3.9.1.jar
-    - org.apache.zookeeper-zookeeper-prometheus-metrics-3.9.1.jar
+    - org.apache.zookeeper-zookeeper-3.9.2.jar
+    - org.apache.zookeeper-zookeeper-jute-3.9.2.jar
+    - org.apache.zookeeper-zookeeper-prometheus-metrics-3.9.2.jar
   * Snappy Java
     - org.xerial.snappy-snappy-java-1.1.10.5.jar
   * Google HTTP Client
@@ -575,16 +582,16 @@ CDDL-1.1 -- ../licenses/LICENSE-CDDL-1.1.txt
     - org.glassfish.hk2-osgi-resource-locator-1.0.3.jar
     - org.glassfish.hk2.external-aopalliance-repackaged-2.6.1.jar
  * Jersey
-    - org.glassfish.jersey.containers-jersey-container-servlet-2.34.jar
-    - org.glassfish.jersey.containers-jersey-container-servlet-core-2.34.jar
-    - org.glassfish.jersey.core-jersey-client-2.34.jar
-    - org.glassfish.jersey.core-jersey-common-2.34.jar
-    - org.glassfish.jersey.core-jersey-server-2.34.jar
-    - org.glassfish.jersey.ext-jersey-entity-filtering-2.34.jar
-    - org.glassfish.jersey.media-jersey-media-json-jackson-2.34.jar
-    - org.glassfish.jersey.media-jersey-media-multipart-2.34.jar
-    - org.glassfish.jersey.inject-jersey-hk2-2.34.jar
- * Mimepull -- org.jvnet.mimepull-mimepull-1.9.13.jar
+    - org.glassfish.jersey.containers-jersey-container-servlet-2.41.jar
+    - org.glassfish.jersey.containers-jersey-container-servlet-core-2.41.jar
+    - org.glassfish.jersey.core-jersey-client-2.41.jar
+    - org.glassfish.jersey.core-jersey-common-2.41.jar
+    - org.glassfish.jersey.core-jersey-server-2.41.jar
+    - org.glassfish.jersey.ext-jersey-entity-filtering-2.41.jar
+    - org.glassfish.jersey.media-jersey-media-json-jackson-2.41.jar
+    - org.glassfish.jersey.media-jersey-media-multipart-2.41.jar
+    - org.glassfish.jersey.inject-jersey-hk2-2.41.jar
+ * Mimepull -- org.jvnet.mimepull-mimepull-1.9.15.jar
 
 Eclipse Distribution License 1.0 -- ../licenses/LICENSE-EDL-1.0.txt
  * Jakarta Activation
