@@ -112,14 +112,14 @@ public class SplitSchedulerTest {
         SplitScheduler scheduler = new SplitScheduler(pulsar, channel, manager, counter, reference, context, strategy);
         doAnswer((invocation)->{
             var decision = invocation.getArgument(2, SplitDecision.class);
-            counter.update(decision);
+            counter.update(decision.getLabel(), decision.getReason());
             return CompletableFuture.completedFuture(null);
         }).when(manager).waitAsync(any(), any(), any(), anyLong(), any());
         scheduler.execute();
 
         var counterExpected = new SplitCounter(pulsar);
-        counterExpected.update(decision1);
-        counterExpected.update(decision2);
+        counterExpected.update(decision1.getLabel(), decision1.getReason());
+        counterExpected.update(decision2.getLabel(), decision2.getReason());
         verify(channel, times(1)).publishSplitEventAsync(eq(decision1.getSplit()));
         verify(channel, times(1)).publishSplitEventAsync(eq(decision2.getSplit()));
 
