@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.loadbalance.extensions.LoadManagerContext;
@@ -84,6 +85,7 @@ public class SplitSchedulerTest {
         strategy = mock(NamespaceBundleSplitStrategy.class);
 
         doReturn(config).when(pulsar).getConfiguration();
+        BrokerTestUtil.mockPulsarBrokerOpenTelemetry(pulsar);
         doReturn(true).when(namespaceBundleFactory).canSplitBundle(any());
         doReturn(CompletableFuture.completedFuture(null)).when(channel).publishSplitEventAsync(any());
 
