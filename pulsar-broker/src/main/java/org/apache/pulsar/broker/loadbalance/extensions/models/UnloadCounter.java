@@ -35,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,27 +48,31 @@ import org.apache.pulsar.common.stats.Metrics;
 /**
  * Defines Unload Metrics.
  */
-public class UnloadCounter {
+public class UnloadCounter implements AutoCloseable {
 
     public static final AttributeKey<String> LOAD_BALANCER_UNLOAD_DECISION_KEY =
             AttributeKey.stringKey("pulsar.loadbalancer.extension.unload.decision");
     public static final AttributeKey<String> LOAD_BALANCER_UNLOAD_REASON_KEY =
             AttributeKey.stringKey("pulsar.loadbalancer.extension.unload.reason");
     private final LongCounter unloadCounter;
+    private final LongCounter unloadBrokerCounter;
 
-    long unloadBrokerCount = 0;
-    long unloadBundleCount = 0;
+    private final ObservableDoubleGauge avgLoadGauge;
+    private final ObservableDoubleGauge stdLoadGauge;
+
+    private long unloadBrokerCount = 0;
+    private long unloadBundleCount = 0;
 
     @Getter
     @VisibleForTesting
-    final Map<UnloadDecision.Label, Map<UnloadDecision.Reason, AtomicLong>> breakdownCounters;
+    private final Map<UnloadDecision.Label, Map<UnloadDecision.Reason, AtomicLong>> breakdownCounters;
 
     @Getter
     @VisibleForTesting
-    double loadAvg;
+    private double loadAvg;
     @Getter
     @VisibleForTesting
-    double loadStd;
+    private double loadStd;
 
     private volatile long updatedAt = 0;
 
@@ -89,9 +94,25 @@ public class UnloadCounter {
                         Unknown, new AtomicLong())
         );
 
-        unloadCounter = pulsarService.getOpenTelemetry().getMeter()
-                .counterBuilder("pulsar.loadbalancer.unloads")
+        var meter = pulsarService.getOpenTelemetry().getMeter();
+        unloadCounter = meter
+                .counterBuilder("pulsar.loadbalancer.extensible.unloads")
                 .build();
+        unloadBrokerCounter = meter
+                .counterBuilder("pulsar.loadbalancer.extensible.unload_brokers")
+                .setDescription("Total number of brokers that have been unloaded")
+                .setUnit("{brokers}")
+                .build();
+        avgLoadGauge = meter.gaugeBuilder("pulsar.loadbalancer.extensible.load.avg")
+                .setDescription(
+                        "Average load of the brokers in the cluster, as calculated by the Extensible Load Balancer")
+                .setUnit("1")
+                .buildWithCallback(observableDoubleMeasurement -> observableDoubleMeasurement.record(loadAvg));
+        stdLoadGauge = meter.gaugeBuilder("pulsar.loadbalancer.extensible.load.std")
+                .setDescription("Standard deviation of the load of the brokers in the cluster, "
+                        + "as calculated by the Extensible Load Balancer")
+                .setUnit("1")
+                .buildWithCallback(observableDoubleMeasurement -> observableDoubleMeasurement.record(loadStd));
     }
 
     public void update(UnloadDecision.Label label, UnloadDecision.Reason reason) {
@@ -116,6 +137,7 @@ public class UnloadCounter {
 
     public void updateUnloadBrokerCount(int unloadBrokerCount) {
         this.unloadBrokerCount += unloadBrokerCount;
+        unloadBrokerCounter.add(unloadBrokerCount);
         updatedAt = System.currentTimeMillis();
     }
 
@@ -169,5 +191,11 @@ public class UnloadCounter {
 
     public long updatedAt() {
         return updatedAt;
+    }
+
+    @Override
+    public void close() throws Exception {
+        stdLoadGauge.close();
+        avgLoadGauge.close();
     }
 }
