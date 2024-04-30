@@ -19,7 +19,6 @@
 package org.apache.pulsar.broker;
 
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.metrics.Meter;
 import java.util.UUID;
 import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.mockito.Mockito;
