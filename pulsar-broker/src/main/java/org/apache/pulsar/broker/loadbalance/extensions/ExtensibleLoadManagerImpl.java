@@ -26,6 +26,7 @@ import static org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecisi
 import static org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecision.Reason.Admin;
 import static org.apache.pulsar.broker.loadbalance.impl.LoadManagerShared.getNamespaceBundle;
 import com.google.common.annotations.VisibleForTesting;
+import io.opentelemetry.api.metrics.ObservableLongCounter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -189,8 +190,11 @@ public class ExtensibleLoadManagerImpl implements ExtensibleLoadManager, BrokerS
     // Record the ignored send msg count during unloading
     @Getter
     private final AtomicLong ignoredSendMsgCount = new AtomicLong();
+    private ObservableLongCounter ignoredSendMsgCounter;
+
     @Getter
     private final AtomicLong ignoredAckCount = new AtomicLong();
+    private ObservableLongCounter ignoredAckCounter;
 
     // record unload metrics
     private final AtomicReference<List<Metrics>> unloadMetrics = new AtomicReference<>();
@@ -487,6 +491,15 @@ public class ExtensibleLoadManagerImpl implements ExtensibleLoadManager, BrokerS
         this.assignCounter = new AssignCounter(pulsar);
         this.splitCounter = new SplitCounter(pulsar);
         this.unloadCounter = new UnloadCounter(pulsar);
+        var meter = pulsar.getOpenTelemetry().getMeter();
+        this.ignoredSendMsgCounter = meter.counterBuilder("pulsar.loadbalance.extensible.ignored.msg.count")
+                .setDescription("Total number of ignored messages during unloading")
+                .setUnit("{message}")
+                .buildWithCallback(measurement -> measurement.record(ignoredSendMsgCount.get()));
+        this.ignoredAckCounter = meter.counterBuilder("pulsar.loadbalance.extensible.ignored.ack.count")
+                .setDescription("Total number of ignored message acknowledgements during unloading")
+                .setUnit("{ack}")
+                .buildWithCallback(measurement -> measurement.record(ignoredAckCount.get()));
     }
 
     @Override
@@ -786,6 +799,13 @@ public class ExtensibleLoadManagerImpl implements ExtensibleLoadManager, BrokerS
             this.topBundlesLoadDataStore.close();
             this.unloadScheduler.close();
             this.splitScheduler.close();
+
+            if (ignoredAckCounter != null) {
+                ignoredAckCounter.close();
+            }
+            if (ignoredSendMsgCounter != null) {
+                ignoredSendMsgCounter.close();
+            }
         } catch (IOException ex) {
             throw new PulsarServerException(ex);
         } finally {
