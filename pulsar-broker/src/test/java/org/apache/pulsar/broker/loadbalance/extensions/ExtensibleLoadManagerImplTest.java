@@ -1314,7 +1314,7 @@ public class ExtensibleLoadManagerImplTest extends ExtensibleLoadManagerImplBase
         {
             var splitMetrics = (AtomicReference<List<Metrics>>)
                     FieldUtils.readDeclaredField(primaryLoadManager, "splitMetrics", true);
-            SplitCounter splitCounter = new SplitCounter();
+            SplitCounter splitCounter = new SplitCounter(pulsar);
             FieldUtils.writeDeclaredField(splitCounter, "splitCount", 35l, true);
             FieldUtils.writeDeclaredField(splitCounter, "breakdownCounters", Map.of(
                     SplitDecision.Label.Success, Map.of(
@@ -1330,7 +1330,7 @@ public class ExtensibleLoadManagerImplTest extends ExtensibleLoadManagerImplBase
         }
 
         {
-            AssignCounter assignCounter = new AssignCounter();
+            AssignCounter assignCounter = new AssignCounter(this.pulsar);
             assignCounter.incrementSuccess();
             assignCounter.incrementFailure();
             assignCounter.incrementFailure();

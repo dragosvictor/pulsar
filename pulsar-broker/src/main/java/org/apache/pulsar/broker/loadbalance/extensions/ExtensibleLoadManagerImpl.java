@@ -181,10 +181,10 @@ public class ExtensibleLoadManagerImpl implements ExtensibleLoadManager, BrokerS
 
     private boolean configuredSystemTopics = false;
 
-    private final AssignCounter assignCounter = new AssignCounter();
+    private AssignCounter assignCounter;
     @Getter
-    private final UnloadCounter unloadCounter = new UnloadCounter();
-    private final SplitCounter splitCounter = new SplitCounter();
+    private UnloadCounter unloadCounter;
+    private SplitCounter splitCounter;
 
     // Record the ignored send msg count during unloading
     @Getter
@@ -484,6 +484,9 @@ public class ExtensibleLoadManagerImpl implements ExtensibleLoadManager, BrokerS
     public void initialize(PulsarService pulsar) {
         this.pulsar = pulsar;
         this.conf = pulsar.getConfiguration();
+        this.assignCounter = new AssignCounter(pulsar);
+        this.splitCounter = new SplitCounter(pulsar);
+        this.unloadCounter = new UnloadCounter();
     }
 
     @Override

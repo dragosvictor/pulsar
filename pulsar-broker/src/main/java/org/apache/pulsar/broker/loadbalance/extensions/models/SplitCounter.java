@@ -26,11 +26,15 @@ import static org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecisi
 import static org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecision.Reason.Sessions;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecision.Reason.Topics;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecision.Reason.Unknown;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.LongCounter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.common.stats.Metrics;
 
 /**
@@ -38,11 +42,18 @@ import org.apache.pulsar.common.stats.Metrics;
  */
 public class SplitCounter {
 
+    public static final AttributeKey LOAD_BALANCER_SPLIT_DECISION_KEY =
+            AttributeKey.stringKey("pulsar.loadbalancer.extension.split.decision");
+    public static final AttributeKey LOAD_BALANCER_SPLIT_REASON_KEY =
+            AttributeKey.stringKey("pulsar.loadbalancer.extension.split.reason");
+
+    private final LongCounter splitCounter;
+
     private long splitCount = 0;
     private final Map<SplitDecision.Label, Map<SplitDecision.Reason, AtomicLong>> breakdownCounters;
     private volatile long updatedAt = 0;
 
-    public SplitCounter() {
+    public SplitCounter(PulsarService pulsarService) {
         breakdownCounters = Map.of(
                 Success, Map.of(
                         Topics, new AtomicLong(),
@@ -53,14 +64,14 @@ public class SplitCounter {
                 Failure, Map.of(
                         Unknown, new AtomicLong())
         );
+
+        splitCounter = pulsarService.getOpenTelemetry().getMeter()
+                .counterBuilder("pulsar.loadbalancer.splits")
+                .build();
     }
 
     public void update(SplitDecision decision) {
-        if (decision.label == Success) {
-            splitCount++;
-        }
-        breakdownCounters.get(decision.getLabel()).get(decision.getReason()).incrementAndGet();
-        updatedAt = System.currentTimeMillis();
+        update(decision.getLabel(), decision.getReason());
     }
 
     public void update(SplitDecision.Label label, SplitDecision.Reason reason) {
@@ -68,7 +79,14 @@ public class SplitCounter {
             splitCount++;
         }
         breakdownCounters.get(label).get(reason).incrementAndGet();
+        splitCounter.add(1, getAttributes(label, reason));
         updatedAt = System.currentTimeMillis();
+    }
+
+    private Attributes getAttributes(SplitDecision.Label label, SplitDecision.Reason reason) {
+        return Attributes.of(
+                LOAD_BALANCER_SPLIT_DECISION_KEY, label.name().toLowerCase(),
+                LOAD_BALANCER_SPLIT_REASON_KEY, reason.name().toLowerCase());
     }
 
     public List<Metrics> toMetrics(String advertisedBrokerAddress) {

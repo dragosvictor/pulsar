@@ -21,17 +21,30 @@ package org.apache.pulsar.broker.loadbalance.extensions.models;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.AssignCounter.Label.Failure;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.AssignCounter.Label.Skip;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.AssignCounter.Label.Success;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.LongCounter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.common.stats.Metrics;
 
 /**
  * Defines Unload Metrics.
  */
 public class AssignCounter {
+
+    public static final AttributeKey LOAD_BALANCER_ASSIGN_RESULT_KEY =
+            AttributeKey.stringKey("pulsar.loadbalancer.extension.assign.result");
+    private static final Attributes SUCCESS =
+            Attributes.of(LOAD_BALANCER_ASSIGN_RESULT_KEY, Success.name().toLowerCase());
+    private static final Attributes FAILURE =
+            Attributes.of(LOAD_BALANCER_ASSIGN_RESULT_KEY, Failure.name().toLowerCase());
+    private static final Attributes SKIP = Attributes.of(LOAD_BALANCER_ASSIGN_RESULT_KEY, Skip.name().toLowerCase());
+    private final LongCounter assignCounter;
 
     enum Label {
         Success,
@@ -41,25 +54,31 @@ public class AssignCounter {
 
     final Map<Label, AtomicLong> breakdownCounters;
 
-    public AssignCounter() {
+    public AssignCounter(PulsarService pulsarService) {
         breakdownCounters = Map.of(
                 Success, new AtomicLong(),
                 Failure, new AtomicLong(),
                 Skip, new AtomicLong()
         );
+        assignCounter = pulsarService.getOpenTelemetry().getMeter()
+                .counterBuilder("pulsar.loadbalancer.assign")
+                .build();
     }
 
 
     public void incrementSuccess() {
         breakdownCounters.get(Success).incrementAndGet();
+        assignCounter.add(1, SUCCESS);
     }
 
     public void incrementFailure() {
         breakdownCounters.get(Failure).incrementAndGet();
+        assignCounter.add(1, FAILURE);
     }
 
     public void incrementSkip() {
         breakdownCounters.get(Skip).incrementAndGet();
+        assignCounter.add(1, SKIP);
     }
 
     public List<Metrics> toMetrics(String advertisedBrokerAddress) {

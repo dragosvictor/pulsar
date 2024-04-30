@@ -29,6 +29,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertEquals;
 import com.google.common.hash.Hashing;
+import io.opentelemetry.api.OpenTelemetry;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,7 @@ import org.apache.pulsar.broker.loadbalance.impl.LoadManagerShared;
 import org.apache.pulsar.broker.namespace.NamespaceService;
 import org.apache.pulsar.broker.service.BrokerService;
 import org.apache.pulsar.broker.service.PulsarStats;
+import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.apache.pulsar.common.naming.NamespaceBundleFactory;
 import org.apache.pulsar.metadata.api.extended.MetadataStoreExtended;
 import org.apache.pulsar.policies.data.loadbalancer.NamespaceBundleStats;
@@ -125,6 +127,10 @@ public class DefaultNamespaceBundleSplitStrategyTest {
         doReturn(channel).when(loadManager).getServiceUnitStateChannel();
         doReturn(true).when(channel).isOwner(any());
 
+        var pulsarBrokerOpenTelemetryMock = mock(PulsarBrokerOpenTelemetry.class);
+        doReturn(OpenTelemetry.noop().getMeter("")).when(pulsarBrokerOpenTelemetryMock).getMeter();
+        doReturn(pulsarBrokerOpenTelemetryMock).when(pulsar).getOpenTelemetry();
+
         var namespaceBundle1 = namespaceBundleFactory.getBundle(
                 LoadManagerShared.getNamespaceNameFromBundleName(bundle1),
                 LoadManagerShared.getBundleRangeFromBundleName(bundle1));
@@ -151,7 +157,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     public void testNamespaceBundleSplitConditionThreshold() {
         config.setLoadBalancerNamespaceBundleSplitConditionHitCountThreshold(0);
         bundleStats.values().forEach(v -> v.msgRateIn = config.getLoadBalancerNamespaceBundleMaxMsgRate() + 1);
-        var strategy = new DefaultNamespaceBundleSplitStrategyImpl(new SplitCounter());
+        var strategy = new DefaultNamespaceBundleSplitStrategyImpl(new SplitCounter(pulsar));
         var actual = strategy.findBundlesToSplit(loadManagerContext, pulsar);
         assertEquals(actual.size(), 1);
     }
@@ -160,7 +166,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     public void testNotEnoughTopics() {
         config.setLoadBalancerNamespaceBundleSplitConditionHitCountThreshold(0);
         bundleStats.values().forEach(v -> v.msgRateIn = config.getLoadBalancerNamespaceBundleMaxMsgRate() + 1);
-        var strategy = new DefaultNamespaceBundleSplitStrategyImpl(new SplitCounter());
+        var strategy = new DefaultNamespaceBundleSplitStrategyImpl(new SplitCounter(pulsar));
         bundleStats.values().forEach(v -> v.topics = 1);
         var actual = strategy.findBundlesToSplit(loadManagerContext, pulsar);
         var expected = Set.of();
@@ -170,7 +176,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     public void testNamespaceMaximumBundles() throws Exception {
         config.setLoadBalancerNamespaceBundleSplitConditionHitCountThreshold(0);
         bundleStats.values().forEach(v -> v.msgRateIn = config.getLoadBalancerNamespaceBundleMaxMsgRate() + 1);
-        var strategy = new DefaultNamespaceBundleSplitStrategyImpl(new SplitCounter());
+        var strategy = new DefaultNamespaceBundleSplitStrategyImpl(new SplitCounter(pulsar));
         doReturn(config.getLoadBalancerNamespaceMaximumBundles()).when(namespaceService).getBundleCount(any());
         var actual = strategy.findBundlesToSplit(loadManagerContext, pulsar);
         var expected = Set.of();
@@ -180,7 +186,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     public void testEmptyBundleStats() {
         config.setLoadBalancerNamespaceBundleSplitConditionHitCountThreshold(0);
         bundleStats.values().forEach(v -> v.msgRateIn = config.getLoadBalancerNamespaceBundleMaxMsgRate() + 1);
-        var strategy = new DefaultNamespaceBundleSplitStrategyImpl(new SplitCounter());
+        var strategy = new DefaultNamespaceBundleSplitStrategyImpl(new SplitCounter(pulsar));
         bundleStats.clear();
         var actual = strategy.findBundlesToSplit(loadManagerContext, pulsar);
         var expected = Set.of();
@@ -188,7 +194,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     }
 
     public void testNoBundleOwner() {
-        var counter = spy(new SplitCounter());
+        var counter = spy(new SplitCounter(pulsar));
         config.setLoadBalancerNamespaceBundleSplitConditionHitCountThreshold(0);
         bundleStats.values().forEach(v -> v.msgRateIn = config.getLoadBalancerNamespaceBundleMaxMsgRate() + 1);
         doReturn(false).when(channel).isOwner(any());
@@ -200,7 +206,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     }
 
     public void testError() throws Exception {
-        var counter = spy(new SplitCounter());
+        var counter = spy(new SplitCounter(pulsar));
         config.setLoadBalancerNamespaceBundleSplitConditionHitCountThreshold(0);
         bundleStats.values().forEach(v -> v.msgRateIn = config.getLoadBalancerNamespaceBundleMaxMsgRate() + 1);
         var strategy = new DefaultNamespaceBundleSplitStrategyImpl(counter);
@@ -212,7 +218,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     }
 
     public void testSplittingBundle() {
-        var counter = spy(new SplitCounter());
+        var counter = spy(new SplitCounter(pulsar));
         config.setLoadBalancerNamespaceBundleSplitConditionHitCountThreshold(0);
         bundleStats.values().forEach(v -> v.msgRateIn = config.getLoadBalancerNamespaceBundleMaxMsgRate() + 1);
         doReturn(Map.of("tenant/namespace/0x00000000_0xFFFFFFFF",
@@ -226,7 +232,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     }
 
     public void testMaxMsgRate() {
-        var counter = spy(new SplitCounter());
+        var counter = spy(new SplitCounter(pulsar));
         var strategy = new DefaultNamespaceBundleSplitStrategyImpl(counter);
         int threshold = config.getLoadBalancerNamespaceBundleSplitConditionHitCountThreshold();
         bundleStats.values().forEach(v -> {
@@ -261,7 +267,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     }
 
     public void testMaxTopics() {
-        var counter = spy(new SplitCounter());
+        var counter = spy(new SplitCounter(pulsar));
         var strategy = new DefaultNamespaceBundleSplitStrategyImpl(counter);
         int threshold = config.getLoadBalancerNamespaceBundleSplitConditionHitCountThreshold();
         bundleStats.values().forEach(v -> v.topics = config.getLoadBalancerNamespaceBundleMaxTopics() + 1);
@@ -293,7 +299,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     }
 
     public void testMaxSessions() {
-        var counter = spy(new SplitCounter());
+        var counter = spy(new SplitCounter(pulsar));
         var strategy = new DefaultNamespaceBundleSplitStrategyImpl(counter);
         int threshold = config.getLoadBalancerNamespaceBundleSplitConditionHitCountThreshold();
         bundleStats.values().forEach(v -> {
@@ -328,7 +334,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
     }
 
     public void testMaxBandwidthMbytes() {
-        var counter = spy(new SplitCounter());
+        var counter = spy(new SplitCounter(pulsar));
         var strategy = new DefaultNamespaceBundleSplitStrategyImpl(counter);
         int threshold = config.getLoadBalancerNamespaceBundleSplitConditionHitCountThreshold();
         bundleStats.values().forEach(v -> {

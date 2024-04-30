@@ -105,7 +105,7 @@ public class SplitSchedulerTest {
     @Test(timeOut = 30 * 1000)
     public void testExecuteSuccess() {
         AtomicReference<List<Metrics>> reference = new AtomicReference();
-        SplitCounter counter = new SplitCounter();
+        SplitCounter counter = new SplitCounter(pulsar);
         SplitManager manager = mock(SplitManager.class);
         SplitScheduler scheduler = new SplitScheduler(pulsar, channel, manager, counter, reference, context, strategy);
         doAnswer((invocation)->{
@@ -115,7 +115,7 @@ public class SplitSchedulerTest {
         }).when(manager).waitAsync(any(), any(), any(), anyLong(), any());
         scheduler.execute();
 
-        var counterExpected = new SplitCounter();
+        var counterExpected = new SplitCounter(pulsar);
         counterExpected.update(decision1);
         counterExpected.update(decision2);
         verify(channel, times(1)).publishSplitEventAsync(eq(decision1.getSplit()));
@@ -135,7 +135,7 @@ public class SplitSchedulerTest {
     @Test(timeOut = 30 * 1000)
     public void testExecuteFailure() {
         AtomicReference<List<Metrics>> reference = new AtomicReference();
-        SplitCounter counter = new SplitCounter();
+        SplitCounter counter = new SplitCounter(pulsar);
         SplitManager manager = new SplitManager(counter);
         SplitScheduler scheduler = new SplitScheduler(pulsar, channel, manager, counter, reference, context, strategy);
         doReturn(CompletableFuture.failedFuture(new RuntimeException())).when(channel).publishSplitEventAsync(any());
@@ -143,7 +143,7 @@ public class SplitSchedulerTest {
         scheduler.execute();
 
 
-        var counterExpected = new SplitCounter();
+        var counterExpected = new SplitCounter(pulsar);
         counterExpected.update(SplitDecision.Label.Failure, SplitDecision.Reason.Unknown);
         counterExpected.update(SplitDecision.Label.Failure, SplitDecision.Reason.Unknown);
         verify(channel, times(1)).publishSplitEventAsync(eq(decision1.getSplit()));
