@@ -42,9 +42,9 @@ import org.apache.pulsar.common.stats.Metrics;
  */
 public class SplitCounter {
 
-    public static final AttributeKey LOAD_BALANCER_SPLIT_DECISION_KEY =
+    public static final AttributeKey<String> LOAD_BALANCER_SPLIT_DECISION_KEY =
             AttributeKey.stringKey("pulsar.loadbalancer.extension.split.decision");
-    public static final AttributeKey LOAD_BALANCER_SPLIT_REASON_KEY =
+    public static final AttributeKey<String> LOAD_BALANCER_SPLIT_REASON_KEY =
             AttributeKey.stringKey("pulsar.loadbalancer.extension.split.reason");
 
     private final LongCounter splitCounter;
@@ -70,23 +70,18 @@ public class SplitCounter {
                 .build();
     }
 
-    public void update(SplitDecision decision) {
-        update(decision.getLabel(), decision.getReason());
-    }
-
     public void update(SplitDecision.Label label, SplitDecision.Reason reason) {
         if (label == Success) {
             splitCount++;
         }
         breakdownCounters.get(label).get(reason).incrementAndGet();
-        splitCounter.add(1, getAttributes(label, reason));
-        updatedAt = System.currentTimeMillis();
-    }
 
-    private Attributes getAttributes(SplitDecision.Label label, SplitDecision.Reason reason) {
-        return Attributes.of(
+        var attributes = Attributes.of(
                 LOAD_BALANCER_SPLIT_DECISION_KEY, label.name().toLowerCase(),
                 LOAD_BALANCER_SPLIT_REASON_KEY, reason.name().toLowerCase());
+        splitCounter.add(1, attributes);
+
+        updatedAt = System.currentTimeMillis();
     }
 
     public List<Metrics> toMetrics(String advertisedBrokerAddress) {

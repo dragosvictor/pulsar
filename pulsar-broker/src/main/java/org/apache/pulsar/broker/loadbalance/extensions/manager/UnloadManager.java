@@ -151,7 +151,7 @@ public class UnloadManager implements StateChangeListener {
                 return;
             }
             log.info("Complete unload bundle: {}", bundle);
-            counter.update(decision);
+            counter.update(decision.getLabel(), decision.getReason());
         });
     }
 

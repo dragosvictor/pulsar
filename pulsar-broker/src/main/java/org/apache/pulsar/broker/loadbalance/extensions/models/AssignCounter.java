@@ -37,7 +37,7 @@ import org.apache.pulsar.common.stats.Metrics;
  */
 public class AssignCounter {
 
-    public static final AttributeKey LOAD_BALANCER_ASSIGN_RESULT_KEY =
+    public static final AttributeKey<String> LOAD_BALANCER_ASSIGN_RESULT_KEY =
             AttributeKey.stringKey("pulsar.loadbalancer.extension.assign.result");
     private static final Attributes SUCCESS =
             Attributes.of(LOAD_BALANCER_ASSIGN_RESULT_KEY, Success.name().toLowerCase());

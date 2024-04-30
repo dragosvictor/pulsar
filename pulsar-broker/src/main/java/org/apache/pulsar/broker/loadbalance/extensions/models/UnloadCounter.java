@@ -49,9 +49,9 @@ import org.apache.pulsar.common.stats.Metrics;
  */
 public class UnloadCounter {
 
-    public static final AttributeKey LOAD_BALANCER_UNLOAD_DECISION_KEY =
+    public static final AttributeKey<String> LOAD_BALANCER_UNLOAD_DECISION_KEY =
             AttributeKey.stringKey("pulsar.loadbalancer.extension.unload.decision");
-    public static final AttributeKey LOAD_BALANCER_UNLOAD_REASON_KEY =
+    public static final AttributeKey<String> LOAD_BALANCER_UNLOAD_REASON_KEY =
             AttributeKey.stringKey("pulsar.loadbalancer.extension.unload.reason");
     private final LongCounter unloadCounter;
 
@@ -94,19 +94,17 @@ public class UnloadCounter {
                 .build();
     }
 
-    public void update(UnloadDecision decision) {
-        update(decision.getLabel(), decision.getReason());
-    }
-
     public void update(UnloadDecision.Label label, UnloadDecision.Reason reason) {
         if (label == Success) {
             unloadBundleCount++;
         }
         breakdownCounters.get(label).get(reason).incrementAndGet();
+
         var attributes = Attributes.of(
                 LOAD_BALANCER_UNLOAD_DECISION_KEY, label.name().toLowerCase(),
                 LOAD_BALANCER_UNLOAD_REASON_KEY, reason.name().toLowerCase());
         unloadCounter.add(1, attributes);
+
         updatedAt = System.currentTimeMillis();
     }
 
