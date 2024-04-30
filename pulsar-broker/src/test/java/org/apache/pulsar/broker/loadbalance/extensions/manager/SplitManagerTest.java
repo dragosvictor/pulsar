@@ -21,12 +21,10 @@ package org.apache.pulsar.broker.loadbalance.extensions.manager;
 import static org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitStateChannelImpl.VERSION_ID_INIT;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecision.Reason.Sessions;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecision.Reason.Unknown;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
-import io.opentelemetry.api.OpenTelemetry;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -34,12 +32,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.FieldUtils;
+import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitState;
 import org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitStateData;
 import org.apache.pulsar.broker.loadbalance.extensions.models.SplitCounter;
 import org.apache.pulsar.broker.loadbalance.extensions.models.SplitDecision;
-import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -57,9 +55,7 @@ public class SplitManagerTest {
     @BeforeClass
     public void setup() {
         pulsar = mock(PulsarService.class);
-        var pulsarBrokerOpenTelemetryMock = mock(PulsarBrokerOpenTelemetry.class);
-        doReturn(OpenTelemetry.noop().getMeter("")).when(pulsarBrokerOpenTelemetryMock).getMeter();
-        doReturn(pulsarBrokerOpenTelemetryMock).when(pulsar).getOpenTelemetry();
+        BrokerTestUtil.mockPulsarBrokerOpenTelemetry(pulsar);
     }
 
     @Test

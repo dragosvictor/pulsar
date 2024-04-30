@@ -29,7 +29,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertEquals;
 import com.google.common.hash.Hashing;
-import io.opentelemetry.api.OpenTelemetry;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.loadbalance.extensions.BrokerRegistry;
@@ -54,7 +54,6 @@ import org.apache.pulsar.broker.loadbalance.impl.LoadManagerShared;
 import org.apache.pulsar.broker.namespace.NamespaceService;
 import org.apache.pulsar.broker.service.BrokerService;
 import org.apache.pulsar.broker.service.PulsarStats;
-import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.apache.pulsar.common.naming.NamespaceBundleFactory;
 import org.apache.pulsar.metadata.api.extended.MetadataStoreExtended;
 import org.apache.pulsar.policies.data.loadbalancer.NamespaceBundleStats;
@@ -117,6 +116,7 @@ public class DefaultNamespaceBundleSplitStrategyTest {
         namespaceBundleFactory = spy(new NamespaceBundleFactory(pulsar, Hashing.crc32()));
         doReturn(brokerService).when(pulsar).getBrokerService();
         doReturn(config).when(pulsar).getConfiguration();
+        BrokerTestUtil.mockPulsarBrokerOpenTelemetry(pulsar);
         doReturn(pulsarStats).when(brokerService).getPulsarStats();
         doReturn(namespaceService).when(pulsar).getNamespaceService();
         doReturn(namespaceBundleFactory).when(namespaceService).getNamespaceBundleFactory();
@@ -126,10 +126,6 @@ public class DefaultNamespaceBundleSplitStrategyTest {
         doReturn(loadManager).when(loadManagerWrapper).get();
         doReturn(channel).when(loadManager).getServiceUnitStateChannel();
         doReturn(true).when(channel).isOwner(any());
-
-        var pulsarBrokerOpenTelemetryMock = mock(PulsarBrokerOpenTelemetry.class);
-        doReturn(OpenTelemetry.noop().getMeter("")).when(pulsarBrokerOpenTelemetryMock).getMeter();
-        doReturn(pulsarBrokerOpenTelemetryMock).when(pulsar).getOpenTelemetry();
 
         var namespaceBundle1 = namespaceBundleFactory.getBundle(
                 LoadManagerShared.getNamespaceNameFromBundleName(bundle1),
