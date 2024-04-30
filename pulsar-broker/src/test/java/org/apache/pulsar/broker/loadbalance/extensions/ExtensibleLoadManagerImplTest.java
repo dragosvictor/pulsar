@@ -1287,7 +1287,7 @@ public class ExtensibleLoadManagerImplTest extends ExtensibleLoadManagerImplBase
         {
             var unloadMetrics = (AtomicReference<List<Metrics>>)
                     FieldUtils.readDeclaredField(primaryLoadManager, "unloadMetrics", true);
-            UnloadCounter unloadCounter = new UnloadCounter();
+            UnloadCounter unloadCounter = new UnloadCounter(pulsar);
             FieldUtils.writeDeclaredField(unloadCounter, "unloadBrokerCount", 2l, true);
             FieldUtils.writeDeclaredField(unloadCounter, "unloadBundleCount", 3l, true);
             FieldUtils.writeDeclaredField(unloadCounter, "loadAvg", 1.5, true);

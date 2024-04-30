@@ -32,18 +32,28 @@ import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecis
 import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision.Reason.Underloaded;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision.Reason.Unknown;
 import com.google.common.annotations.VisibleForTesting;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.LongCounter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Getter;
+import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.common.stats.Metrics;
 
 /**
  * Defines Unload Metrics.
  */
 public class UnloadCounter {
+
+    public static final AttributeKey LOAD_BALANCER_UNLOAD_DECISION_KEY =
+            AttributeKey.stringKey("pulsar.loadbalancer.extension.unload.decision");
+    public static final AttributeKey LOAD_BALANCER_UNLOAD_REASON_KEY =
+            AttributeKey.stringKey("pulsar.loadbalancer.extension.unload.reason");
+    private final LongCounter unloadCounter;
 
     long unloadBrokerCount = 0;
     long unloadBundleCount = 0;
@@ -61,7 +71,7 @@ public class UnloadCounter {
 
     private volatile long updatedAt = 0;
 
-    public UnloadCounter() {
+    public UnloadCounter(PulsarService pulsarService) {
         breakdownCounters = Map.of(
                 Success, Map.of(
                         Overloaded, new AtomicLong(),
@@ -78,14 +88,14 @@ public class UnloadCounter {
                 Failure, Map.of(
                         Unknown, new AtomicLong())
         );
+
+        unloadCounter = pulsarService.getOpenTelemetry().getMeter()
+                .counterBuilder("pulsar.loadbalancer.unloads")
+                .build();
     }
 
     public void update(UnloadDecision decision) {
-        if (decision.getLabel() == Success) {
-            unloadBundleCount++;
-        }
-        breakdownCounters.get(decision.getLabel()).get(decision.getReason()).incrementAndGet();
-        updatedAt = System.currentTimeMillis();
+        update(decision.getLabel(), decision.getReason());
     }
 
     public void update(UnloadDecision.Label label, UnloadDecision.Reason reason) {
@@ -93,6 +103,10 @@ public class UnloadCounter {
             unloadBundleCount++;
         }
         breakdownCounters.get(label).get(reason).incrementAndGet();
+        var attributes = Attributes.of(
+                LOAD_BALANCER_UNLOAD_DECISION_KEY, label.name().toLowerCase(),
+                LOAD_BALANCER_UNLOAD_REASON_KEY, reason.name().toLowerCase());
+        unloadCounter.add(1, attributes);
         updatedAt = System.currentTimeMillis();
     }
 

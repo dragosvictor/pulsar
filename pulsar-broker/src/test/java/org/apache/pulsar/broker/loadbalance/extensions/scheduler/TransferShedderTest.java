@@ -43,6 +43,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
+import io.opentelemetry.api.OpenTelemetry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,6 +61,7 @@ import java.util.function.BiConsumer;
 import org.apache.commons.lang.reflect.FieldUtils;
 import org.apache.commons.math3.stat.descriptive.moment.Mean;
 import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation;
+import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.loadbalance.BrokerFilterException;
@@ -88,6 +90,7 @@ import org.apache.pulsar.broker.namespace.NamespaceService;
 import org.apache.pulsar.broker.resources.LocalPoliciesResources;
 import org.apache.pulsar.broker.resources.NamespaceResources;
 import org.apache.pulsar.broker.resources.PulsarResources;
+import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.apache.pulsar.common.naming.NamespaceBundle;
 import org.apache.pulsar.common.naming.NamespaceBundleFactory;
 import org.apache.pulsar.common.naming.NamespaceBundles;
@@ -163,6 +166,8 @@ public class TransferShedderTest {
         doReturn(loadManager).when(loadManagerWrapper).get();
         doReturn(channel).when(loadManager).getServiceUnitStateChannel();
         doReturn(true).when(channel).isOwner(any(), any());
+
+        BrokerTestUtil.mockPulsarBrokerOpenTelemetry(pulsar);
     }
 
     public LoadManagerContext setupContext(){
@@ -498,7 +503,7 @@ public class TransferShedderTest {
 
     @Test
     public void testEmptyBrokerLoadData() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = getContext();
         var res = transferShedder.findBundlesForUnloading(ctx, Map.of(), Map.of());
@@ -508,7 +513,7 @@ public class TransferShedderTest {
 
     @Test
     public void testNoOwnerLoadData() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         FieldUtils.writeDeclaredField(transferShedder, "channel", channel, true);
         var ctx = setupContext();
@@ -522,7 +527,7 @@ public class TransferShedderTest {
 
     @Test
     public void testEmptyTopBundlesLoadData() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = getContext();
         var brokerLoadDataStore = ctx.brokerLoadDataStore();
@@ -543,7 +548,7 @@ public class TransferShedderTest {
 
     @Test
     public void testOutDatedLoadData() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         var brokerLoadDataStore = ctx.brokerLoadDataStore();
@@ -565,7 +570,7 @@ public class TransferShedderTest {
 
     @Test
     public void testRecentlyUnloadedBrokers() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
 
@@ -594,7 +599,7 @@ public class TransferShedderTest {
 
     @Test
     public void testRecentlyUnloadedBundles() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         Map<String, Long> recentlyUnloadedBundles = new HashMap<>();
@@ -616,7 +621,7 @@ public class TransferShedderTest {
 
     @Test
     public void testGetAvailableBrokersFailed() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(pulsar, counter, null,
                 isolationPoliciesHelper, antiAffinityGroupPolicyHelper);
         var ctx = setupContext();
@@ -635,7 +640,7 @@ public class TransferShedderTest {
         IsolationPoliciesHelper isolationPoliciesHelper = new IsolationPoliciesHelper(allocationPoliciesSpy);
         BrokerIsolationPoliciesFilter filter = new BrokerIsolationPoliciesFilter(isolationPoliciesHelper);
         filters.add(filter);
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = spy(new TransferShedder(pulsar, counter, filters,
                 isolationPoliciesHelper, antiAffinityGroupPolicyHelper));
 
@@ -744,7 +749,7 @@ public class TransferShedderTest {
         var filters = new ArrayList<BrokerFilter>();
         AntiAffinityGroupPolicyFilter filter = new AntiAffinityGroupPolicyFilter(antiAffinityGroupPolicyHelper);
         filters.add(filter);
-        var counter = new UnloadCounter();
+        var counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(pulsar, counter, filters,
                 isolationPoliciesHelper, antiAffinityGroupPolicyHelper);
 
@@ -802,7 +807,7 @@ public class TransferShedderTest {
             }
         };
         filters.add(filter);
-        var counter = new UnloadCounter();
+        var counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(pulsar, counter, filters,
                 isolationPoliciesHelper, antiAffinityGroupPolicyHelper);
 
@@ -818,7 +823,7 @@ public class TransferShedderTest {
 
     @Test
     public void testIsLoadBalancerSheddingBundlesWithPoliciesEnabled() {
-        var counter = new UnloadCounter();
+        var counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(pulsar, counter, new ArrayList<>(),
                 isolationPoliciesHelper, antiAffinityGroupPolicyHelper);
 
@@ -849,7 +854,7 @@ public class TransferShedderTest {
 
     @Test
     public void testTargetStd() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = getContext();
         BrokerRegistry brokerRegistry = mock(BrokerRegistry.class);
@@ -881,7 +886,7 @@ public class TransferShedderTest {
 
     @Test
     public void testSingleTopBundlesLoadData() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         var topBundlesLoadDataStore = ctx.topBundleLoadDataStore();
@@ -900,7 +905,7 @@ public class TransferShedderTest {
 
     @Test
     public void testBundleThroughputLargerThanOffloadThreshold() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         var topBundlesLoadDataStore = ctx.topBundleLoadDataStore();
@@ -921,7 +926,7 @@ public class TransferShedderTest {
 
     @Test
     public void testTargetStdAfterTransfer() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         var brokerLoadDataStore = ctx.brokerLoadDataStore();
@@ -939,7 +944,7 @@ public class TransferShedderTest {
 
     @Test
     public void testUnloadBundlesGreaterThanTargetThroughput() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = getContext();
 
@@ -994,7 +999,7 @@ public class TransferShedderTest {
 
     @Test
     public void testSkipBundlesGreaterThanTargetThroughputAfterSplit() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = getContext();
         ctx.brokerConfiguration().setLoadBalancerBrokerLoadTargetStd(0.20);
@@ -1026,7 +1031,7 @@ public class TransferShedderTest {
 
     @Test
     public void testUnloadBundlesLessThanTargetThroughputAfterSplit() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = getContext();
 
@@ -1064,7 +1069,7 @@ public class TransferShedderTest {
 
     @Test
     public void testUnloadBundlesGreaterThanTargetThroughputAfterSplit() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = getContext();
 
@@ -1106,7 +1111,7 @@ public class TransferShedderTest {
 
     @Test
     public void testMinBrokerWithLowTraffic() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         var brokerLoadDataStore = ctx.brokerLoadDataStore();
@@ -1133,7 +1138,7 @@ public class TransferShedderTest {
 
     @Test
     public void testMinBrokerWithLowerLoadThanAvg() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         var brokerLoadDataStore = ctx.brokerLoadDataStore();
@@ -1157,7 +1162,7 @@ public class TransferShedderTest {
 
     @Test
     public void testMaxNumberOfTransfersPerShedderCycle() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         ctx.brokerConfiguration()
@@ -1175,7 +1180,7 @@ public class TransferShedderTest {
 
     @Test
     public void testLoadBalancerSheddingConditionHitCountThreshold() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         int max = 3;
@@ -1201,7 +1206,7 @@ public class TransferShedderTest {
 
     @Test
     public void testRemainingTopBundles() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
         var topBundlesLoadDataStore = ctx.topBundleLoadDataStore();
@@ -1220,7 +1225,7 @@ public class TransferShedderTest {
 
     @Test
     public void testLoadMoreThan100() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContext();
 
@@ -1247,7 +1252,7 @@ public class TransferShedderTest {
 
     @Test
     public void testRandomLoad() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         for (int i = 0; i < 5; i++) {
             var ctx = setupContext(10);
@@ -1262,7 +1267,7 @@ public class TransferShedderTest {
 
     @Test
     public void testOverloadOutlier() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContextLoadSkewedOverload(100);
         var res = transferShedder.findBundlesForUnloading(ctx, Map.of(), Map.of());
@@ -1280,7 +1285,7 @@ public class TransferShedderTest {
 
     @Test
     public void testUnderloadOutlier() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         TransferShedder transferShedder = new TransferShedder(counter);
         var ctx = setupContextLoadSkewedUnderload(100);
         var res = transferShedder.findBundlesForUnloading(ctx, Map.of(), Map.of());

@@ -29,6 +29,7 @@ import static org.mockito.Mockito.verify;
 
 import com.google.common.collect.Lists;
 import lombok.Cleanup;
+import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.loadbalance.extensions.BrokerRegistry;
@@ -72,6 +73,7 @@ public class UnloadSchedulerTest {
                         ExecutorProvider.ExtendedThreadFactory("pulsar-load-manager"));
         doReturn(loadManagerExecutor)
                 .when(pulsar).getLoadManagerExecutor();
+        BrokerTestUtil.mockPulsarBrokerOpenTelemetry(pulsar);
     }
 
     @AfterMethod
@@ -82,7 +84,7 @@ public class UnloadSchedulerTest {
     @Test(timeOut = 30 * 1000)
     public void testExecuteSuccess() {
         AtomicReference<List<Metrics>> reference = new AtomicReference<>();
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         LoadManagerContext context = setupContext();
         BrokerRegistry registry = context.brokerRegistry();
         ServiceUnitStateChannel channel = mock(ServiceUnitStateChannel.class);
@@ -120,7 +122,7 @@ public class UnloadSchedulerTest {
     @Test(timeOut = 30 * 1000)
     public void testExecuteMoreThenOnceWhenFirstNotDone() throws InterruptedException {
         AtomicReference<List<Metrics>> reference = new AtomicReference<>();
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         LoadManagerContext context = setupContext();
         BrokerRegistry registry = context.brokerRegistry();
         ServiceUnitStateChannel channel = mock(ServiceUnitStateChannel.class);
@@ -158,7 +160,7 @@ public class UnloadSchedulerTest {
     @Test(timeOut = 30 * 1000)
     public void testDisableLoadBalancer() {
         AtomicReference<List<Metrics>> reference = new AtomicReference<>();
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         LoadManagerContext context = setupContext();
         context.brokerConfiguration().setLoadBalancerEnabled(false);
         ServiceUnitStateChannel channel = mock(ServiceUnitStateChannel.class);
@@ -181,7 +183,7 @@ public class UnloadSchedulerTest {
     @Test(timeOut = 30 * 1000)
     public void testNotChannelOwner() {
         AtomicReference<List<Metrics>> reference = new AtomicReference<>();
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         LoadManagerContext context = setupContext();
         context.brokerConfiguration().setLoadBalancerEnabled(false);
         ServiceUnitStateChannel channel = mock(ServiceUnitStateChannel.class);

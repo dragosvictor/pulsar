@@ -18,8 +18,12 @@
  */
 package org.apache.pulsar.broker;
 
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.metrics.Meter;
 import java.util.UUID;
+import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.mockito.Mockito;
+import org.mockito.internal.util.MockUtil;
 
 /**
  * Holds util methods used in test.
@@ -76,5 +80,13 @@ public class BrokerTestUtil {
                 .spiedInstance(object)
                 .defaultAnswer(Mockito.CALLS_REAL_METHODS)
                 .stubOnly());
+    }
+
+    public static void mockPulsarBrokerOpenTelemetry(PulsarService pulsarServiceMock) {
+        assert MockUtil.isMock(pulsarServiceMock);
+        var pulsarBrokerOpenTelemetryMock = Mockito.mock(PulsarBrokerOpenTelemetry.class);
+        var meter = OpenTelemetry.noop().getMeter("pulsar.test");
+        Mockito.doReturn(meter).when(pulsarBrokerOpenTelemetryMock).getMeter();
+        Mockito.doReturn(pulsarBrokerOpenTelemetryMock).when(pulsarServiceMock).getOpenTelemetry();
     }
 }

@@ -23,9 +23,12 @@ import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecis
 import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision.Label.Success;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision.Reason.Admin;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision.Reason.Unknown;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
+import io.opentelemetry.api.OpenTelemetry;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -33,21 +36,33 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.FieldUtils;
+import org.apache.pulsar.broker.BrokerTestUtil;
+import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitState;
 import org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitStateData;
 import org.apache.pulsar.broker.loadbalance.extensions.models.Unload;
 import org.apache.pulsar.broker.loadbalance.extensions.models.UnloadCounter;
 import org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision;
+import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.apache.pulsar.common.util.FutureUtil;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 @Slf4j
 @Test(groups = "broker")
 public class UnloadManagerTest {
 
+    private PulsarService pulsar;
+
+    @BeforeMethod
+    public void init() {
+        pulsar = mock(PulsarService.class);
+        BrokerTestUtil.mockPulsarBrokerOpenTelemetry(pulsar);
+    }
+
     @Test
     public void testEventPubFutureHasException() {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
         var unloadDecision =
                 new UnloadDecision(new Unload("broker-1", "bundle-1"), Success, Admin);
@@ -67,7 +82,7 @@ public class UnloadManagerTest {
 
     @Test
     public void testTimeout() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
         var unloadDecision =
                 new UnloadDecision(new Unload("broker-1", "bundle-1"), Success, Admin);
@@ -91,7 +106,7 @@ public class UnloadManagerTest {
 
     @Test
     public void testSuccess() throws IllegalAccessException, ExecutionException, InterruptedException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
         String dstBroker = "broker-2";
         String srcBroker = "broker-1";
@@ -151,7 +166,7 @@ public class UnloadManagerTest {
 
     @Test
     public void testFailedStage() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
         var unloadDecision =
                 new UnloadDecision(new Unload("broker-1", "bundle-1"), Success, Admin);
@@ -180,7 +195,7 @@ public class UnloadManagerTest {
 
     @Test
     public void testClose() throws IllegalAccessException {
-        UnloadCounter counter = new UnloadCounter();
+        UnloadCounter counter = new UnloadCounter(pulsar);
         UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
         var unloadDecision =
                 new UnloadDecision(new Unload("broker-1", "bundle-1"), Success, Admin);

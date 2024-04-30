@@ -486,7 +486,7 @@ public class ExtensibleLoadManagerImpl implements ExtensibleLoadManager, BrokerS
         this.conf = pulsar.getConfiguration();
         this.assignCounter = new AssignCounter(pulsar);
         this.splitCounter = new SplitCounter(pulsar);
-        this.unloadCounter = new UnloadCounter();
+        this.unloadCounter = new UnloadCounter(pulsar);
     }
 
     @Override
