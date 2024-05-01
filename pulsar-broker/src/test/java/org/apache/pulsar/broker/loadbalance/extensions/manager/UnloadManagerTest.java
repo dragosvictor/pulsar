@@ -42,6 +42,7 @@ import org.apache.pulsar.broker.loadbalance.extensions.models.Unload;
 import org.apache.pulsar.broker.loadbalance.extensions.models.UnloadCounter;
 import org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision;
 import org.apache.pulsar.common.util.FutureUtil;
+import org.mockito.Mockito;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -54,13 +55,14 @@ public class UnloadManagerTest {
     @BeforeMethod
     public void init() {
         pulsar = mock(PulsarService.class);
+        Mockito.doReturn("mockBrokerId").when(pulsar).getBrokerId();
         BrokerTestUtil.mockPulsarBrokerOpenTelemetry(pulsar);
     }
 
     @Test
     public void testEventPubFutureHasException() {
         UnloadCounter counter = new UnloadCounter(pulsar);
-        UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
+        UnloadManager manager = new UnloadManager(pulsar, counter);
         var unloadDecision =
                 new UnloadDecision(new Unload("broker-1", "bundle-1"), Success, Admin);
         CompletableFuture<Void> future =
@@ -80,7 +82,7 @@ public class UnloadManagerTest {
     @Test
     public void testTimeout() throws IllegalAccessException {
         UnloadCounter counter = new UnloadCounter(pulsar);
-        UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
+        UnloadManager manager = new UnloadManager(pulsar, counter);
         var unloadDecision =
                 new UnloadDecision(new Unload("broker-1", "bundle-1"), Success, Admin);
         CompletableFuture<Void> future =
@@ -104,7 +106,7 @@ public class UnloadManagerTest {
     @Test
     public void testSuccess() throws IllegalAccessException, ExecutionException, InterruptedException {
         UnloadCounter counter = new UnloadCounter(pulsar);
-        UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
+        UnloadManager manager = new UnloadManager(pulsar, counter);
         String dstBroker = "broker-2";
         String srcBroker = "broker-1";
         String bundle = "bundle-1";
@@ -164,7 +166,7 @@ public class UnloadManagerTest {
     @Test
     public void testFailedStage() throws IllegalAccessException {
         UnloadCounter counter = new UnloadCounter(pulsar);
-        UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
+        UnloadManager manager = new UnloadManager(pulsar, counter);
         var unloadDecision =
                 new UnloadDecision(new Unload("broker-1", "bundle-1"), Success, Admin);
         CompletableFuture<Void> future =
@@ -193,7 +195,7 @@ public class UnloadManagerTest {
     @Test
     public void testClose() throws IllegalAccessException {
         UnloadCounter counter = new UnloadCounter(pulsar);
-        UnloadManager manager = new UnloadManager(counter, "mockBrokerId");
+        UnloadManager manager = new UnloadManager(pulsar, counter);
         var unloadDecision =
                 new UnloadDecision(new Unload("broker-1", "bundle-1"), Success, Admin);
         CompletableFuture<Void> future =

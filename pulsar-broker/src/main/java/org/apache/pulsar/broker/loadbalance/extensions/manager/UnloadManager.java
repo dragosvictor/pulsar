@@ -23,6 +23,9 @@ import static org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUni
 import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision.Label.Failure;
 import static org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision.Reason.Unknown;
 import com.google.common.annotations.VisibleForTesting;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.prometheus.client.Histogram;
 import java.util.Map;
 import java.util.Objects;
@@ -31,10 +34,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitState;
 import org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitStateData;
 import org.apache.pulsar.broker.loadbalance.extensions.models.UnloadCounter;
 import org.apache.pulsar.broker.loadbalance.extensions.models.UnloadDecision;
+import org.apache.pulsar.common.stats.MetricsUtil;
 
 /**
  * Unload manager.
@@ -46,18 +51,24 @@ public class UnloadManager implements StateChangeListener {
     private final Map<String, CompletableFuture<Void>> inFlightUnloadRequest;
     private final String brokerId;
 
+    private static final AttributeKey<String> LOAD_BALANCER_STATE_KEY =
+            AttributeKey.stringKey("pulsar.loadbalance.extension.state");
+    private final DoubleHistogram stateLatencyHistogram;
+
     @VisibleForTesting
     public enum LatencyMetric {
         UNLOAD(buildHistogram(
-            "brk_lb_unload_latency", "Total time duration of unload operations on source brokers"), true, false),
+            "brk_lb_unload_latency", "Total time duration of unload operations on source brokers"), true, false,
+                Attributes.of(LOAD_BALANCER_STATE_KEY, "unload")),
         ASSIGN(buildHistogram(
             "brk_lb_assign_latency", "Time spent in the load balancing ASSIGN state on destination brokers"),
-                false, true),
+                false, true, Attributes.of(LOAD_BALANCER_STATE_KEY, "assign")),
         RELEASE(buildHistogram(
-            "brk_lb_release_latency", "Time spent in the load balancing RELEASE state on source brokers"), true, false),
+            "brk_lb_release_latency", "Time spent in the load balancing RELEASE state on source brokers"), true, false,
+                Attributes.of(LOAD_BALANCER_STATE_KEY, "release")),
         DISCONNECT(buildHistogram(
             "brk_lb_disconnect_latency", "Time spent in the load balancing disconnected state on source brokers"),
-                true, false);
+                true, false, Attributes.of(LOAD_BALANCER_STATE_KEY, "disconnect"));
 
         private static Histogram buildHistogram(String name, String help) {
             return Histogram.build(name, help).unit("ms").labelNames("broker", "metric").
@@ -69,14 +80,18 @@ public class UnloadManager implements StateChangeListener {
         private final Map<String, CompletableFuture<Void>> futures = new ConcurrentHashMap<>();
         private final boolean isSourceBrokerMetric;
         private final boolean isDestinationBrokerMetric;
+        private final Attributes attributes;
 
-        LatencyMetric(Histogram histogram, boolean isSourceBrokerMetric, boolean isDestinationBrokerMetric) {
+        LatencyMetric(Histogram histogram, boolean isSourceBrokerMetric, boolean isDestinationBrokerMetric,
+                      Attributes attributes) {
             this.histogram = histogram;
             this.isSourceBrokerMetric = isSourceBrokerMetric;
             this.isDestinationBrokerMetric = isDestinationBrokerMetric;
+            this.attributes = attributes;
         }
 
-        public void beginMeasurement(String serviceUnit, String brokerId, ServiceUnitStateData data) {
+        public void beginMeasurement(final DoubleHistogram stateLatencyHistogram, String serviceUnit, String brokerId,
+                                     ServiceUnitStateData data) {
             if ((isSourceBrokerMetric && brokerId.equals(data.sourceBroker()))
                     || (isDestinationBrokerMetric && brokerId.equals(data.dstBroker()))) {
                 var startTimeNs = System.nanoTime();
@@ -84,9 +99,13 @@ public class UnloadManager implements StateChangeListener {
                     var future = new CompletableFuture<Void>();
                     future.completeOnTimeout(null, OP_TIMEOUT_NS, TimeUnit.NANOSECONDS).
                             thenAccept(__ -> {
-                                var durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNs);
+                                var durationNs = System.nanoTime() - startTimeNs;
+                                var durationMs = TimeUnit.NANOSECONDS.toMillis(durationNs);
                                 log.info("Operation {} for service unit {} took {} ms", this, serviceUnit, durationMs);
                                 histogram.labels(brokerId, "bundleUnloading").observe(durationMs);
+
+                                var durationSec = MetricsUtil.convertToSeconds(durationNs, TimeUnit.NANOSECONDS);
+                                stateLatencyHistogram.record(durationSec, attributes);
                             }).whenComplete((__, throwable) -> futures.remove(serviceUnit, future));
                     return future;
                 });
@@ -101,10 +120,15 @@ public class UnloadManager implements StateChangeListener {
         }
     }
 
-    public UnloadManager(UnloadCounter counter, String brokerId) {
+    public UnloadManager(PulsarService pulsarService, UnloadCounter counter) {
         this.counter = counter;
-        this.brokerId = Objects.requireNonNull(brokerId);
+        this.brokerId = Objects.requireNonNull(pulsarService.getBrokerId());
         inFlightUnloadRequest = new ConcurrentHashMap<>();
+        stateLatencyHistogram = pulsarService.getOpenTelemetry().getMeter()
+                .histogramBuilder("pulsar.loadbalance.extension.unload.latency")
+                .setDescription("Time spent in the load balancing unload state on source brokers")
+                .setUnit("ms")
+                .build();
     }
 
     private void complete(String serviceUnit, Throwable ex) {
@@ -162,12 +186,13 @@ public class UnloadManager implements StateChangeListener {
         }
         ServiceUnitState state = ServiceUnitStateData.state(data);
         switch (state) {
-            case Free, Owned -> LatencyMetric.DISCONNECT.beginMeasurement(serviceUnit, brokerId, data);
+            case Free, Owned ->
+                    LatencyMetric.DISCONNECT.beginMeasurement(stateLatencyHistogram, serviceUnit, brokerId, data);
             case Releasing -> {
-                LatencyMetric.RELEASE.beginMeasurement(serviceUnit, brokerId, data);
-                LatencyMetric.UNLOAD.beginMeasurement(serviceUnit, brokerId, data);
+                LatencyMetric.RELEASE.beginMeasurement(stateLatencyHistogram, serviceUnit, brokerId, data);
+                LatencyMetric.UNLOAD.beginMeasurement(stateLatencyHistogram, serviceUnit, brokerId, data);
             }
-            case Assigning -> LatencyMetric.ASSIGN.beginMeasurement(serviceUnit, brokerId, data);
+            case Assigning -> LatencyMetric.ASSIGN.beginMeasurement(stateLatencyHistogram, serviceUnit, brokerId, data);
         }
     }
 
