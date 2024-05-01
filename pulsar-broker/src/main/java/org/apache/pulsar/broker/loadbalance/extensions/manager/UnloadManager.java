@@ -58,17 +58,15 @@ public class UnloadManager implements StateChangeListener {
     @VisibleForTesting
     public enum LatencyMetric {
         UNLOAD(buildHistogram(
-            "brk_lb_unload_latency", "Total time duration of unload operations on source brokers"), true, false,
-                Attributes.of(LOAD_BALANCER_STATE_KEY, "unload")),
+            "brk_lb_unload_latency", "Total time duration of unload operations on source brokers"), true, false),
         ASSIGN(buildHistogram(
             "brk_lb_assign_latency", "Time spent in the load balancing ASSIGN state on destination brokers"),
-                false, true, Attributes.of(LOAD_BALANCER_STATE_KEY, "assign")),
+                false, true),
         RELEASE(buildHistogram(
-            "brk_lb_release_latency", "Time spent in the load balancing RELEASE state on source brokers"), true, false,
-                Attributes.of(LOAD_BALANCER_STATE_KEY, "release")),
+            "brk_lb_release_latency", "Time spent in the load balancing RELEASE state on source brokers"), true, false),
         DISCONNECT(buildHistogram(
             "brk_lb_disconnect_latency", "Time spent in the load balancing disconnected state on source brokers"),
-                true, false, Attributes.of(LOAD_BALANCER_STATE_KEY, "disconnect"));
+                true, false);
 
         private static Histogram buildHistogram(String name, String help) {
             return Histogram.build(name, help).unit("ms").labelNames("broker", "metric").
@@ -82,12 +80,11 @@ public class UnloadManager implements StateChangeListener {
         private final boolean isDestinationBrokerMetric;
         private final Attributes attributes;
 
-        LatencyMetric(Histogram histogram, boolean isSourceBrokerMetric, boolean isDestinationBrokerMetric,
-                      Attributes attributes) {
+        LatencyMetric(Histogram histogram, boolean isSourceBrokerMetric, boolean isDestinationBrokerMetric) {
             this.histogram = histogram;
             this.isSourceBrokerMetric = isSourceBrokerMetric;
             this.isDestinationBrokerMetric = isDestinationBrokerMetric;
-            this.attributes = attributes;
+            this.attributes = Attributes.of(LOAD_BALANCER_STATE_KEY, name().toLowerCase());
         }
 
         public void beginMeasurement(final DoubleHistogram stateLatencyHistogram, String serviceUnit, String brokerId,
