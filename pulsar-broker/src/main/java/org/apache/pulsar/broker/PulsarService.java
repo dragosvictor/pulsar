@@ -446,6 +446,9 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                 return closeFuture;
             }
             LOG.info("Closing PulsarService");
+            if (brokerService != null) {
+                brokerService.unloadNamespaceBundlesGracefully();
+            }
             state = State.Closing;
 
             // close the service in reverse order v.s. in which they are started
@@ -562,6 +565,11 @@ public class PulsarService implements AutoCloseable, ShutdownService {
 
             if (transactionBufferClient != null) {
                 transactionBufferClient.close();
+            }
+
+            if (topicPoliciesService != null) {
+                topicPoliciesService.close();
+                topicPoliciesService = null;
             }
 
             if (client != null) {
@@ -1000,7 +1008,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
     @VisibleForTesting
     protected PulsarResources newPulsarResources() {
         PulsarResources pulsarResources = new PulsarResources(localMetadataStore, configurationMetadataStore,
-                config.getMetadataStoreOperationTimeoutSeconds());
+                config.getMetadataStoreOperationTimeoutSeconds(), getExecutor());
 
         pulsarResources.getClusterResources().getStore().registerListener(this::handleDeleteCluster);
         return pulsarResources;
