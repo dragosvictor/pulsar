@@ -20,6 +20,7 @@ package org.apache.pulsar.broker;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.channel.EventLoopGroup;
+import io.opentelemetry.api.OpenTelemetry;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
@@ -52,9 +53,11 @@ public class ManagedLedgerClientFactory implements ManagedLedgerStorage {
             bkEnsemblePolicyToBkClientMap = new ConcurrentHashMap<>();
     private StatsProvider statsProvider = new NullStatsProvider();
 
+    @Override
     public void initialize(ServiceConfiguration conf, MetadataStoreExtended metadataStore,
                            BookKeeperClientFactory bookkeeperProvider,
-                           EventLoopGroup eventLoopGroup) throws Exception {
+                           EventLoopGroup eventLoopGroup,
+                           OpenTelemetry openTelemetry) throws Exception {
         ManagedLedgerFactoryConfig managedLedgerFactoryConfig = new ManagedLedgerFactoryConfig();
         managedLedgerFactoryConfig.setMaxCacheSize(conf.getManagedLedgerCacheSizeMB() * 1024L * 1024L);
         managedLedgerFactoryConfig.setCacheEvictionWatermark(conf.getManagedLedgerCacheEvictionWatermark());
@@ -113,8 +116,8 @@ public class ManagedLedgerClientFactory implements ManagedLedgerStorage {
         };
 
         try {
-            this.managedLedgerFactory =
-                    new ManagedLedgerFactoryImpl(metadataStore, bkFactory, managedLedgerFactoryConfig, statsLogger);
+            this.managedLedgerFactory = new ManagedLedgerFactoryImpl(
+                    metadataStore, bkFactory, managedLedgerFactoryConfig, statsLogger, openTelemetry);
         } catch (Exception e) {
             statsProvider.stop();
             defaultBkClient.close();

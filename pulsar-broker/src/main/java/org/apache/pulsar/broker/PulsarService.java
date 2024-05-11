@@ -813,7 +813,8 @@ public class PulsarService implements AutoCloseable, ShutdownService {
             // Now we are ready to start services
             this.bkClientFactory = newBookKeeperClientFactory();
 
-            managedLedgerClientFactory = newManagedLedgerClientFactory();
+            managedLedgerClientFactory = ManagedLedgerStorage.create(config, localMetadataStore, bkClientFactory,
+                    ioEventLoopGroup, openTelemetry.getOpenTelemetryService().getOpenTelemetry());
 
             this.brokerService = newBrokerService(this);
 
@@ -1000,14 +1001,6 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                 .numThreads(config.getNumOrderedExecutorThreads())
                 .name("pulsar-ordered")
                 .build();
-    }
-
-    @VisibleForTesting
-    protected ManagedLedgerStorage newManagedLedgerClientFactory() throws Exception {
-        return ManagedLedgerStorage.create(
-                config, localMetadataStore,
-                bkClientFactory, ioEventLoopGroup
-        );
     }
 
     @VisibleForTesting
