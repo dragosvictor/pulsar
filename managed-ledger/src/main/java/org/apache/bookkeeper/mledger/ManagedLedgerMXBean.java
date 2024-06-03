@@ -81,6 +81,11 @@ public interface ManagedLedgerMXBean {
     double getMarkDeleteRate();
 
     /**
+     * @return the number of mark-delete ops
+     */
+    long getMarkDeleteTotal();
+
+    /**
      * @return the number of addEntry requests that succeeded
      */
     long getAddEntrySucceed();

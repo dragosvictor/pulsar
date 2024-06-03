@@ -266,6 +266,11 @@ public class ManagedLedgerMBeanImpl implements ManagedLedgerMXBean {
     }
 
     @Override
+    public long getMarkDeleteTotal() {
+        return markDeleteOps.getTotalCount();
+    }
+
+    @Override
     public double getEntrySizeAverage() {
         return entryStats.getAvg();
     }

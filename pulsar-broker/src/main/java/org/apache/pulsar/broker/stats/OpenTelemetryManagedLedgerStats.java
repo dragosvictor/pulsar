@@ -43,6 +43,10 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
     public static final String BYTES_IN_COUNTER = "pulsar.broker.managed_ledger.message.incoming.size";
     private final ObservableLongMeasurement bytesInCounter;
 
+    // Replaces pulsar_ml_MarkDeleteRate
+    public static final String MARK_DELETE_COUNTER = "pulsar.broker.managed_ledger.mark_delete.count";
+    private final ObservableLongMeasurement markDeleteCounter;
+
     private final BatchCallback batchCallback;
 
     public OpenTelemetryManagedLedgerStats(PulsarService pulsar) {
@@ -72,6 +76,12 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
                 .setDescription("The total number of messages bytes read from this ledger.")
                 .buildObserver();
 
+        markDeleteCounter = meter
+                .counterBuilder(MARK_DELETE_COUNTER)
+                .setUnit("{operation}")
+                .setDescription("The total number of mark delete operations for this ledger.")
+                .buildObserver();
+
         batchCallback = meter.batchCallback(() -> ((ManagedLedgerFactoryImpl) pulsar.getManagedLedgerFactory())
                         .getManagedLedgers()
                         .values()
@@ -79,7 +89,8 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
                 entryOutCounter,
                 bytesOutCounter,
                 entryInCounter,
-                bytesInCounter);
+                bytesInCounter,
+                markDeleteCounter);
     }
 
     @Override
@@ -96,5 +107,6 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
         bytesOutCounter.record(dummyValue, attributes);
         entryInCounter.record(dummyValue, attributes);
         bytesInCounter.record(dummyValue, attributes);
+        markDeleteCounter.record(dummyValue, attributes);
     }
 }
