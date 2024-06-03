@@ -238,6 +238,11 @@ public class ManagedLedgerMBeanImpl implements ManagedLedgerMXBean {
     }
 
     @Override
+    public long getAddEntryWithReplicasBytesTotal() {
+        return addEntryWithReplicasOps.getTotalValue();
+    }
+
+    @Override
     public double getReadEntriesRate() {
         return readEntriesOps.getRate();
     }
@@ -285,6 +290,11 @@ public class ManagedLedgerMBeanImpl implements ManagedLedgerMXBean {
     @Override
     public double getReadEntriesOpsCacheMissesRate() {
         return readEntriesOpsCacheMisses.getRate();
+    }
+
+    @Override
+    public long getReadEntriesOpsCacheMissesTotal() {
+        return readEntriesOpsCacheMisses.getTotalCount();
     }
 
     @Override

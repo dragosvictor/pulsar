@@ -30,8 +30,17 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
     private final ObservableLongMeasurement addEntryCounter;
 
     // Replaces pulsar_ml_AddEntryBytesRate
-    public static final String BYTES_OUT_COUNTER = "pulsar.broker.managed_ledger.message.outgoing.size";
+    public static final String BYTES_OUT_COUNTER = "pulsar.broker.managed_ledger.message.outgoing.logical.size";
     private final ObservableLongMeasurement bytesOutCounter;
+
+    // Replaces pulsar_ml_AddEntryWithReplicasBytesRate
+    public static final String BYTES_OUT_WITH_REPLICAS_COUNTER =
+            "pulsar.broker.managed_ledger.message.outgoing.replicated.size";
+    private final ObservableLongMeasurement bytesOutWithReplicasCounter;
+
+    // Replaces pulsar_ml_NumberOfMessagesInBacklog
+    public static final String BACKLOG_COUNTER = "pulsar.broker.managed_ledger.backlog.count";
+    private final ObservableLongMeasurement backlogCounter;
 
     // Replaces pulsar_ml_ReadEntriesRate
     public static final String READ_ENTRY_COUNTER = "pulsar.broker.managed_ledger.message.incoming.count";
@@ -40,6 +49,11 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
     // Replaces pulsar_ml_ReadEntriesBytesRate
     public static final String BYTES_IN_COUNTER = "pulsar.broker.managed_ledger.message.incoming.size";
     private final ObservableLongMeasurement bytesInCounter;
+
+    // Replaces brk_ml_ReadEntriesOpsCacheMissesRate
+    public static final String READ_ENTRY_CACHE_MISS_COUNTER =
+            "pulsar.broker.managed_ledger.message.incoming.cache.miss.count";
+    private final ObservableLongMeasurement readEntryCacheMissCounter;
 
     // Replaces pulsar_ml_MarkDeleteRate
     public static final String MARK_DELETE_COUNTER = "pulsar.broker.managed_ledger.mark_delete.count";
@@ -59,7 +73,19 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
         bytesOutCounter = meter
                 .counterBuilder(BYTES_OUT_COUNTER)
                 .setUnit("By")
-                .setDescription("The total number of messages bytes written to this ledger.")
+                .setDescription("The total number of messages bytes written to this ledger, excluding replicas.")
+                .buildObserver();
+
+        bytesOutWithReplicasCounter = meter
+                .counterBuilder(BYTES_OUT_WITH_REPLICAS_COUNTER)
+                .setUnit("By")
+                .setDescription("The total number of messages bytes written to this ledger, including replicas.")
+                .buildObserver();
+
+        backlogCounter = meter
+                .upDownCounterBuilder(BACKLOG_COUNTER)
+                .setUnit("{message}")
+                .setDescription("The number of messages in backlog for all consumers from this ledger.")
                 .buildObserver();
 
         readEntryCounter = meter
@@ -74,6 +100,12 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
                 .setDescription("The total number of messages bytes read from this ledger.")
                 .buildObserver();
 
+        readEntryCacheMissCounter = meter
+                .upDownCounterBuilder(READ_ENTRY_CACHE_MISS_COUNTER)
+                .setUnit("{operation}")
+                .setDescription("The number of cache misses during read operations from this ledger.")
+                .buildObserver();
+
         markDeleteCounter = meter
                 .counterBuilder(MARK_DELETE_COUNTER)
                 .setUnit("{operation}")
@@ -85,8 +117,11 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
                         .forEach(this::recordMetricsForManagedLedger),
                 addEntryCounter,
                 bytesOutCounter,
+                bytesOutWithReplicasCounter,
+                backlogCounter,
                 readEntryCounter,
                 bytesInCounter,
+                readEntryCacheMissCounter,
                 markDeleteCounter);
     }
 
@@ -113,6 +148,7 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
         addEntryCounter.record(addEntryFailed, attributesFailure);
         addEntryCounter.record(addEntryActive, attributesActive);
         bytesOutCounter.record(stats.getAddEntryBytesTotal(), attributes);
+        bytesOutWithReplicasCounter.record(stats.getAddEntryWithReplicasBytesTotal(), attributes);
 
         var readEntryTotal = stats.getReadEntriesSucceededTotal();
         var readEntrySucceed = stats.getReadEntriesSucceededTotal();
@@ -123,6 +159,8 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
         readEntryCounter.record(readEntryActive, attributesActive);
         bytesInCounter.record(stats.getReadEntriesBytesTotal(), attributes);
 
+        backlogCounter.record(stats.getNumberOfMessagesInBacklog(), attributes);
         markDeleteCounter.record(stats.getMarkDeleteTotal(), attributes);
+        readEntryCacheMissCounter.record(stats.getReadEntriesOpsCacheMissesTotal(), attributes);
     }
 }

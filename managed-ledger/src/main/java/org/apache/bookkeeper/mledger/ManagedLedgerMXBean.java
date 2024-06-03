@@ -71,6 +71,11 @@ public interface ManagedLedgerMXBean {
     double getAddEntryWithReplicasBytesRate();
 
     /**
+     * @return the total number of bytes written, including replicas
+     */
+    long getAddEntryWithReplicasBytesTotal();
+
+    /**
      * @return the msg/s rate of messages read
      */
     double getReadEntriesRate();
@@ -134,6 +139,11 @@ public interface ManagedLedgerMXBean {
      * @return the number of readEntries requests that cache miss Rate
      */
     double getReadEntriesOpsCacheMissesRate();
+
+    /**
+     * @return the total number of readEntries requests that cache miss
+     */
+    long getReadEntriesOpsCacheMissesTotal();
 
     // Entry size statistics
 
