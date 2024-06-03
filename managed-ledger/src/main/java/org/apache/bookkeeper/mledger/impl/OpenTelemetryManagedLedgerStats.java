@@ -16,14 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pulsar.broker.stats;
+package org.apache.bookkeeper.mledger.impl;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.BatchCallback;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
-import org.apache.bookkeeper.mledger.impl.ManagedLedgerFactoryImpl;
-import org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl;
-import org.apache.pulsar.broker.PulsarService;
 
 public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
 
@@ -49,8 +47,8 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
 
     private final BatchCallback batchCallback;
 
-    public OpenTelemetryManagedLedgerStats(PulsarService pulsar) {
-        var meter = pulsar.getOpenTelemetry().getMeter();
+    public OpenTelemetryManagedLedgerStats(ManagedLedgerFactoryImpl factory, OpenTelemetry openTelemetry) {
+        var meter = openTelemetry.getMeter("pulsar.managed_ledger");
 
         entryOutCounter = meter
                 .counterBuilder(ENTRY_OUT_COUNTER)
@@ -82,8 +80,7 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
                 .setDescription("The total number of mark delete operations for this ledger.")
                 .buildObserver();
 
-        batchCallback = meter.batchCallback(() -> ((ManagedLedgerFactoryImpl) pulsar.getManagedLedgerFactory())
-                        .getManagedLedgers()
+        batchCallback = meter.batchCallback(() -> factory.getManagedLedgers()
                         .values()
                         .forEach(this::recordMetricsForManagedLedger),
                 entryOutCounter,

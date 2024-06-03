@@ -112,7 +112,6 @@ import org.apache.pulsar.broker.service.schema.SchemaRegistryService;
 import org.apache.pulsar.broker.service.schema.SchemaStorageFactory;
 import org.apache.pulsar.broker.stats.MetricsGenerator;
 import org.apache.pulsar.broker.stats.OpenTelemetryConsumerStats;
-import org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerStats;
 import org.apache.pulsar.broker.stats.OpenTelemetryTopicStats;
 import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.apache.pulsar.broker.stats.prometheus.PrometheusMetricsServlet;
@@ -259,7 +258,6 @@ public class PulsarService implements AutoCloseable, ShutdownService {
     private final PulsarBrokerOpenTelemetry openTelemetry;
     private OpenTelemetryTopicStats openTelemetryTopicStats;
     private OpenTelemetryConsumerStats openTelemetryConsumerStats;
-    private OpenTelemetryManagedLedgerStats openTelemetryManagedLedgerStats;
 
     private TransactionMetadataStoreService transactionMetadataStoreService;
     private TransactionBufferProvider transactionBufferProvider;
@@ -678,10 +676,6 @@ public class PulsarService implements AutoCloseable, ShutdownService {
             brokerClientSharedTimer.stop();
             monotonicSnapshotClock.close();
 
-            if (openTelemetryManagedLedgerStats != null) {
-                openTelemetryManagedLedgerStats.close();
-                openTelemetryManagedLedgerStats = null;
-            }
             if (openTelemetryConsumerStats != null) {
                 openTelemetryConsumerStats.close();
                 openTelemetryConsumerStats = null;
@@ -833,7 +827,6 @@ public class PulsarService implements AutoCloseable, ShutdownService {
 
             openTelemetryTopicStats = new OpenTelemetryTopicStats(this);
             openTelemetryConsumerStats = new OpenTelemetryConsumerStats(this);
-            openTelemetryManagedLedgerStats = new OpenTelemetryManagedLedgerStats(this);
 
             localMetadataSynchronizer = StringUtils.isNotBlank(config.getMetadataSyncEventTopic())
                     ? new PulsarMetadataEventSynchronizer(this, config.getMetadataSyncEventTopic())
