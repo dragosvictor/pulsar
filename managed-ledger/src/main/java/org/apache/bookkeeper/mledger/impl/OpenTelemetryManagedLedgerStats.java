@@ -26,16 +26,16 @@ import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
 
     // Replaces pulsar_ml_AddEntryMessagesRate
-    public static final String ENTRY_OUT_COUNTER = "pulsar.broker.managed_ledger.message.outgoing.count";
-    private final ObservableLongMeasurement entryOutCounter;
+    public static final String ADD_ENTRY_COUNTER = "pulsar.broker.managed_ledger.message.outgoing.count";
+    private final ObservableLongMeasurement addEntryCounter;
 
     // Replaces pulsar_ml_AddEntryBytesRate
     public static final String BYTES_OUT_COUNTER = "pulsar.broker.managed_ledger.message.outgoing.size";
     private final ObservableLongMeasurement bytesOutCounter;
 
     // Replaces pulsar_ml_ReadEntriesRate
-    public static final String ENTRY_IN_COUNTER = "pulsar.broker.managed_ledger.message.incoming.count";
-    private final ObservableLongMeasurement entryInCounter;
+    public static final String READ_ENTRY_COUNTER = "pulsar.broker.managed_ledger.message.incoming.count";
+    private final ObservableLongMeasurement readEntryCounter;
 
     // Replaces pulsar_ml_ReadEntriesBytesRate
     public static final String BYTES_IN_COUNTER = "pulsar.broker.managed_ledger.message.incoming.size";
@@ -50,10 +50,10 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
     public OpenTelemetryManagedLedgerStats(ManagedLedgerFactoryImpl factory, OpenTelemetry openTelemetry) {
         var meter = openTelemetry.getMeter("pulsar.managed_ledger");
 
-        entryOutCounter = meter
-                .counterBuilder(ENTRY_OUT_COUNTER)
-                .setUnit("{message}")
-                .setDescription("The total number of messages written to this ledger.")
+        addEntryCounter = meter
+                .upDownCounterBuilder(ADD_ENTRY_COUNTER)
+                .setUnit("{operation}")
+                .setDescription("The number of write operations to this ledger.")
                 .buildObserver();
 
         bytesOutCounter = meter
@@ -62,10 +62,10 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
                 .setDescription("The total number of messages bytes written to this ledger.")
                 .buildObserver();
 
-        entryInCounter = meter
-                .counterBuilder(ENTRY_IN_COUNTER)
-                .setUnit("{message}")
-                .setDescription("The total number of messages read from this ledger.")
+        readEntryCounter = meter
+                .upDownCounterBuilder(READ_ENTRY_COUNTER)
+                .setUnit("{operation}")
+                .setDescription("The number of read operations from this ledger.")
                 .buildObserver();
 
         bytesInCounter = meter
@@ -83,9 +83,9 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
         batchCallback = meter.batchCallback(() -> factory.getManagedLedgers()
                         .values()
                         .forEach(this::recordMetricsForManagedLedger),
-                entryOutCounter,
+                addEntryCounter,
                 bytesOutCounter,
-                entryInCounter,
+                readEntryCounter,
                 bytesInCounter,
                 markDeleteCounter);
     }
@@ -109,18 +109,18 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
         var addEntrySucceed = stats.getAddEntrySucceedTotal();
         var addEntryFailed = stats.getAddEntryErrors();
         var addEntryActive = addEntryTotal - addEntrySucceed - addEntryFailed;
-        entryOutCounter.record(addEntrySucceed, attributesSucceed);
-        entryOutCounter.record(addEntryFailed, attributesFailure);
-        entryOutCounter.record(addEntryActive, attributesActive);
+        addEntryCounter.record(addEntrySucceed, attributesSucceed);
+        addEntryCounter.record(addEntryFailed, attributesFailure);
+        addEntryCounter.record(addEntryActive, attributesActive);
         bytesOutCounter.record(stats.getAddEntryBytesTotal(), attributes);
 
         var readEntryTotal = stats.getReadEntriesSucceededTotal();
         var readEntrySucceed = stats.getReadEntriesSucceededTotal();
         var readEntryFailed = stats.getReadEntriesErrors();
         var readEntryActive = readEntryTotal - readEntrySucceed - readEntryFailed;
-        entryInCounter.record(readEntrySucceed, attributesSucceed);
-        entryInCounter.record(readEntryFailed, attributesFailure);
-        entryInCounter.record(readEntryActive, attributesActive);
+        readEntryCounter.record(readEntrySucceed, attributesSucceed);
+        readEntryCounter.record(readEntryFailed, attributesFailure);
+        readEntryCounter.record(readEntryActive, attributesActive);
         bytesInCounter.record(stats.getReadEntriesBytesTotal(), attributes);
 
         markDeleteCounter.record(stats.getMarkDeleteTotal(), attributes);
