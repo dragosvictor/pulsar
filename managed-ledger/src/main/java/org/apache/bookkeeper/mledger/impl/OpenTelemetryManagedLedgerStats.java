@@ -19,7 +19,7 @@
 package org.apache.bookkeeper.mledger.impl;
 
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.metrics.BatchCallback;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
@@ -95,15 +95,34 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
         batchCallback.close();
     }
 
-    private void recordMetricsForManagedLedger(ManagedLedgerImpl ml) {
-        var builder = Attributes.builder();
-        var attributes = builder.build();
-        var dummyValue = 0L;
+    private static final AttributeKey<String> PULSAR_MANAGED_LEDGER_OPERATION_STATUS =
+            AttributeKey.stringKey("pulsar.managed_ledger.operation.status");
 
-        entryOutCounter.record(dummyValue, attributes);
-        bytesOutCounter.record(dummyValue, attributes);
-        entryInCounter.record(dummyValue, attributes);
-        bytesInCounter.record(dummyValue, attributes);
-        markDeleteCounter.record(dummyValue, attributes);
+    private void recordMetricsForManagedLedger(ManagedLedgerImpl ml) {
+        var stats = ml.getMbean();
+        var attributes = stats.getAttributes();
+        var attributesSucceed = attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "succeed").build();
+        var attributesFailure = attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "failure").build();
+        var attributesActive = attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "active").build();
+
+        var addEntryTotal = stats.getAddEntrySucceedTotal();
+        var addEntrySucceed = stats.getAddEntrySucceedTotal();
+        var addEntryFailed = stats.getAddEntryErrors();
+        var addEntryActive = addEntryTotal - addEntrySucceed - addEntryFailed;
+        entryOutCounter.record(addEntrySucceed, attributesSucceed);
+        entryOutCounter.record(addEntryFailed, attributesFailure);
+        entryOutCounter.record(addEntryActive, attributesActive);
+        bytesOutCounter.record(stats.getAddEntryBytesTotal(), attributes);
+
+        var readEntryTotal = stats.getReadEntriesSucceededTotal();
+        var readEntrySucceed = stats.getReadEntriesSucceededTotal();
+        var readEntryFailed = stats.getReadEntriesErrors();
+        var readEntryActive = readEntryTotal - readEntrySucceed - readEntryFailed;
+        entryInCounter.record(readEntrySucceed, attributesSucceed);
+        entryInCounter.record(readEntryFailed, attributesFailure);
+        entryInCounter.record(readEntryActive, attributesActive);
+        bytesInCounter.record(stats.getReadEntriesBytesTotal(), attributes);
+
+        markDeleteCounter.record(stats.getMarkDeleteTotal(), attributes);
     }
 }
