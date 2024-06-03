@@ -18,7 +18,6 @@
  */
 package org.apache.bookkeeper.mledger;
 
-import io.opentelemetry.api.common.Attributes;
 import org.apache.bookkeeper.common.annotation.InterfaceAudience;
 import org.apache.bookkeeper.common.annotation.InterfaceStability;
 import org.apache.bookkeeper.mledger.proto.PendingBookieOpsStats;
@@ -35,13 +34,6 @@ public interface ManagedLedgerMXBean {
      * @return the ManagedLedger name
      */
     String getName();
-
-    /**
-     * @return the OpenTelemetry attributes, if present
-     */
-    default Attributes getAttributes() {
-        return null;
-    }
 
     /**
      * @return the total size of the messages in active ledgers (accounting for the multiple copies stored)
@@ -69,6 +61,11 @@ public interface ManagedLedgerMXBean {
     double getAddEntryBytesRate();
 
     /**
+     * @return the total number of bytes written
+     */
+    long getAddEntryBytesTotal();
+
+    /**
      * @return the bytes/s rate of messages added with replicas
      */
     double getAddEntryWithReplicasBytesRate();
@@ -82,6 +79,11 @@ public interface ManagedLedgerMXBean {
      * @return the bytes/s rate of messages read
      */
     double getReadEntriesBytesRate();
+
+    /**
+     * @return the total number of bytes read
+     */
+    long getReadEntriesBytesTotal();
 
     /**
      * @return the rate of mark-delete ops/s

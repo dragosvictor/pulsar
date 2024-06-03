@@ -72,7 +72,6 @@ public class ManagedLedgerMBeanImpl implements ManagedLedgerMXBean {
         this.managedLedger = managedLedger;
     }
 
-    @Override
     public Attributes getAttributes() {
         if (attributes != null) {
             return attributes;
@@ -229,6 +228,11 @@ public class ManagedLedgerMBeanImpl implements ManagedLedgerMXBean {
     }
 
     @Override
+    public long getAddEntryBytesTotal() {
+        return addEntryOps.getTotalValue();
+    }
+
+    @Override
     public double getAddEntryWithReplicasBytesRate() {
         return addEntryWithReplicasOps.getValueRate();
     }
@@ -241,6 +245,11 @@ public class ManagedLedgerMBeanImpl implements ManagedLedgerMXBean {
     @Override
     public double getReadEntriesBytesRate() {
         return readEntriesOps.getValueRate();
+    }
+
+    @Override
+    public long getReadEntriesBytesTotal() {
+        return readEntriesOps.getTotalValue();
     }
 
     @Override
