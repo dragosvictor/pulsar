@@ -32,7 +32,7 @@
   <groupId>org.apache.pulsar</groupId>
   <artifactId>pulsar</artifactId>
 
-  <version>3.3.0-SNAPSHOT</version>
+  <version>3.4.0-SNAPSHOT</version>
 
   <name>Pulsar</name>
   <description>Pulsar is a distributed pub-sub messaging platform with a very
@@ -96,13 +96,14 @@ flexible messaging model and an intuitive client API.</description>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <project.build.outputTimestamp>2023-12-28T19:33:08Z</project.build.outputTimestamp>
+    <project.build.outputTimestamp>2024-05-13T09:56:12Z</project.build.outputTimestamp>
     <redirectTestOutputToFile>true</redirectTestOutputToFile>
 
     <!-- By default build for local Docker platform.
          To create multi-arch image, pass -Ddocker.platforms=linux/arm64,linux/amd64
     -->
     <docker.platforms></docker.platforms>
+    <docker.skip.push>true</docker.skip.push>
 
     <!-- required for running tests on JDK11+ -->
     <test.additional.args>
@@ -130,6 +131,8 @@ flexible messaging model and an intuitive client API.</description>
     <testHeapDumpPath>/tmp</testHeapDumpPath>
     <surefire.shutdown>kill</surefire.shutdown>
     <docker.organization>apachepulsar</docker.organization>
+    <docker.image>pulsar</docker.image>
+    <docker.tag>latest</docker.tag>
     <skipSourceReleaseAssembly>false</skipSourceReleaseAssembly>
     <skipBuildDistribution>false</skipBuildDistribution>
     <shadePluginPhase>package</shadePluginPhase>
@@ -157,9 +160,9 @@ flexible messaging model and an intuitive client API.</description>
     <slf4j.version>2.0.13</slf4j.version>
     <commons.collections4.version>4.4</commons.collections4.version>
     <log4j2.version>2.23.1</log4j2.version>
-    <bouncycastle.version>1.78</bouncycastle.version>
-    <bouncycastle.bcpkix-fips.version>1.0.6</bouncycastle.bcpkix-fips.version>
-    <bouncycastle.bc-fips.version>1.0.2.4</bouncycastle.bc-fips.version>
+    <bouncycastle.version>1.78.1</bouncycastle.version>
+    <bouncycastle.bcpkix-fips.version>1.0.7</bouncycastle.bcpkix-fips.version>
+    <bouncycastle.bc-fips.version>1.0.2.5</bouncycastle.bc-fips.version>
     <jackson.version>2.14.2</jackson.version>
     <reflections.version>0.10.2</reflections.version>
     <swagger.version>1.6.2</swagger.version>
@@ -249,16 +252,16 @@ flexible messaging model and an intuitive client API.</description>
     <apache-http-client.version>4.5.13</apache-http-client.version>
     <apache-httpcomponents.version>4.4.15</apache-httpcomponents.version>
     <jetcd.version>0.7.5</jetcd.version>
-    <oxia.version>0.2.0</oxia.version>
+    <oxia.version>0.3.0</oxia.version>
     <snakeyaml.version>2.0</snakeyaml.version>
     <ant.version>1.10.12</ant.version>
     <seancfoley.ipaddress.version>5.3.3</seancfoley.ipaddress.version>
     <disruptor.version>3.4.3</disruptor.version>
     <zstd-jni.version>1.5.2-3</zstd-jni.version>
     <netty-reactive-streams.version>2.0.6</netty-reactive-streams.version>
-    <opentelemetry.version>1.37.0</opentelemetry.version>
+    <opentelemetry.version>1.38.0</opentelemetry.version>
     <opentelemetry.alpha.version>${opentelemetry.version}-alpha</opentelemetry.alpha.version>
-    <opentelemetry.instrumentation.version>1.33.2</opentelemetry.instrumentation.version>
+    <opentelemetry.instrumentation.version>1.33.3</opentelemetry.instrumentation.version>
     <opentelemetry.instrumentation.alpha.version>${opentelemetry.instrumentation.version}-alpha</opentelemetry.instrumentation.alpha.version>
     <opentelemetry.semconv.version>1.25.0-alpha</opentelemetry.semconv.version>
     <picocli.version>4.7.5</picocli.version>
