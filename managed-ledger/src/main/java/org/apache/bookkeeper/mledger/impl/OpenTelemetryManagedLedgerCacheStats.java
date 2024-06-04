@@ -47,19 +47,20 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
         final Attributes attributes = Attributes.of(POOL_CHUNK_ALLOCATION_TYPE, name().toLowerCase());
     }
 
+    public static final AttributeKey<String> CACHE_ENTRY_TYPE = AttributeKey.stringKey("cache_entry_type");
+    @VisibleForTesting
+    enum CacheEntryType {
+        ACTIVE,
+        EVICTED,
+        INSERTED;
+        final Attributes attributes = Attributes.of(CACHE_ENTRY_TYPE, name().toLowerCase());
+    }
+
     // Replaces pulsar_ml_cache_evictions
     public static final String CACHE_EVICTION_COUNTER_RATE = "pulsar.broker.managed_ledger.cache.eviction.count";
     private final ObservableLongMeasurement cacheEvictionCounterRate;
 
-    // Replaces pulsar_ml_cache_inserted_entries_total
-    public static final String CACHE_INSERTION_COUNTER = "pulsar.broker.managed_ledger.cache.entry.insertion.count";
-    private final ObservableLongMeasurement cacheInsertionCounter;
-
-    // Replaces pulsar_ml_cache_evicted_entries_total
-    public static final String CACHE_EVICTION_COUNTER = "pulsar.broker.managed_ledger.cache.entry.eviction.count";
-    private final ObservableLongMeasurement cacheEvictionCounter;
-
-    // Replaces pulsar_ml_cache_entries
+    // Replaces pulsar_ml_cache_entries, pulsar_ml_cache_inserted_entries_total, pulsar_ml_cache_evicted_entries_total
     public static final String CACHE_ENTRY_COUNTER = "pulsar.broker.managed_ledger.cache.entry.count";
     private final ObservableLongMeasurement cacheEntryCounter;
 
@@ -99,18 +100,6 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
                 .counterBuilder(CACHE_EVICTION_COUNTER_RATE)
                 .setUnit("{eviction}")
                 .setDescription("The total number of cache evictions.")
-                .buildObserver();
-
-        cacheInsertionCounter = meter
-                .counterBuilder(CACHE_INSERTION_COUNTER)
-                .setUnit("{insertion}")
-                .setDescription("The total number of entries inserted into the entry cache.")
-                .buildObserver();
-
-        cacheEvictionCounter = meter
-                .counterBuilder(CACHE_EVICTION_COUNTER)
-                .setUnit("{eviction}")
-                .setDescription("The total number of entries evicted from the entry cache.")
                 .buildObserver();
 
         cacheEntryCounter = meter
@@ -157,8 +146,6 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
 
         batchCallback = meter.batchCallback(() -> recordMetrics(factory),
                 cacheEvictionCounterRate,
-                cacheInsertionCounter,
-                cacheEvictionCounter,
                 cacheEntryCounter,
                 cacheHitCounter,
                 cacheHitBytesCounter,
@@ -181,9 +168,9 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
         var entriesOut = stats.getCacheEvictedEntriesCount();
         var entriesIn = stats.getCacheInsertedEntriesCount();
         var entriesActive = entriesIn - entriesOut;
-        cacheInsertionCounter.record(stats.getCacheInsertedEntriesCount());
-        cacheEvictionCounter.record(stats.getCacheEvictedEntriesCount());
-        cacheEntryCounter.record(entriesActive);
+        cacheEntryCounter.record(entriesActive, CacheEntryType.ACTIVE.attributes);
+        cacheEntryCounter.record(entriesIn, CacheEntryType.INSERTED.attributes);
+        cacheEntryCounter.record(entriesOut, CacheEntryType.EVICTED.attributes);
 
         cacheHitCounter.record(stats.getCacheHitsTotal());
         cacheHitBytesCounter.record(stats.getCacheHitsBytesTotal());
