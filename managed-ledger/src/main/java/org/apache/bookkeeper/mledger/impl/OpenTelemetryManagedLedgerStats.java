@@ -62,7 +62,7 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
     private final BatchCallback batchCallback;
 
     public OpenTelemetryManagedLedgerStats(ManagedLedgerFactoryImpl factory, OpenTelemetry openTelemetry) {
-        var meter = openTelemetry.getMeter("pulsar.managed_ledger");
+        var meter = openTelemetry.getMeter("pulsar.managed_ledger"); // TODO
 
         addEntryCounter = meter
                 .upDownCounterBuilder(ADD_ENTRY_COUNTER)

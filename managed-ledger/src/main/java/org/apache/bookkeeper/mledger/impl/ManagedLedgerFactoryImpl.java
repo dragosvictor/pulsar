@@ -121,6 +121,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
     private final MetadataStore metadataStore;
 
     private final OpenTelemetryManagedLedgerStats openTelemetryManagedLedgerStats;
+    private final OpenTelemetryManagedLedgerCursorStats openTelemetryManagedLedgerCursorStats;
 
     //indicate whether shutdown() is called.
     private volatile boolean closed;
@@ -230,6 +231,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
         metadataStore.registerSessionListener(this::handleMetadataStoreNotification);
 
         openTelemetryManagedLedgerStats = new OpenTelemetryManagedLedgerStats(this, openTelemetry);
+        openTelemetryManagedLedgerCursorStats = new OpenTelemetryManagedLedgerCursorStats(this, openTelemetry);
     }
 
     static class DefaultBkFactory implements BookkeeperFactoryForCustomEnsemblePlacementPolicy {
@@ -626,6 +628,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
             }
         }));
         return FutureUtil.waitForAll(futures).thenAcceptAsync(__ -> {
+            openTelemetryManagedLedgerCursorStats.close();
             openTelemetryManagedLedgerStats.close();
             //wait for tasks in scheduledExecutor executed.
             scheduledExecutor.shutdownNow();
