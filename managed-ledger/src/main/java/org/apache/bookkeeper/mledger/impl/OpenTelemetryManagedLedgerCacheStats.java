@@ -19,15 +19,12 @@
 package org.apache.bookkeeper.mledger.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Streams;
-import io.netty.buffer.PoolArenaMetric;
-import io.netty.buffer.PoolChunkMetric;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.BatchCallback;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
-import java.util.Collection;
+import org.apache.bookkeeper.mledger.impl.cache.PooledByteBufAllocatorStats;
 import org.apache.bookkeeper.mledger.impl.cache.RangeEntryCacheImpl;
 
 public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
@@ -193,31 +190,13 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
         cacheMissCounter.record(stats.getCacheMissesTotal());
         cacheMissBytesCounter.record(stats.getCacheMissesBytesTotal());
 
-        var directArenas = RangeEntryCacheImpl.ALLOCATOR.metric().directArenas();
-        cachePoolActiveAllocationCounter.record(
-                directArenas.stream().mapToLong(PoolArenaMetric::numActiveSmallAllocations).sum(),
-                PoolArenaType.SMALL.attributes);
-        cachePoolActiveAllocationCounter.record(
-                directArenas.stream().mapToLong(PoolArenaMetric::numActiveNormalAllocations).sum(),
+        var allocatorStats = new PooledByteBufAllocatorStats(RangeEntryCacheImpl.ALLOCATOR);
+        cachePoolActiveAllocationCounter.record(allocatorStats.activeAllocationsSmall, PoolArenaType.SMALL.attributes);
+        cachePoolActiveAllocationCounter.record(allocatorStats.activeAllocationsNormal,
                 PoolArenaType.NORMAL.attributes);
-        cachePoolActiveAllocationCounter.record(
-                directArenas.stream().mapToLong(PoolArenaMetric::numActiveHugeAllocations).sum(),
-                PoolArenaType.HUGE.attributes);
-
-        var totalAllocatedBytes = directArenas.stream()
-                .map(PoolArenaMetric::chunkLists)
-                .flatMap(Collection::stream)
-                .flatMap(Streams::stream)
-                .mapToLong(PoolChunkMetric::chunkSize)
-                .sum();
-        var totalFreeBytes = directArenas.stream()
-                .map(PoolArenaMetric::chunkLists)
-                .flatMap(Collection::stream)
-                .flatMap(Streams::stream)
-                .mapToLong(PoolChunkMetric::freeBytes)
-                .sum();
-        var totalUsedBytes = totalAllocatedBytes - totalFreeBytes;
-        cachePoolActiveAllocationSizeCounter.record(totalAllocatedBytes, PoolChunkAllocationType.ALLOCATED.attributes);
-        cachePoolActiveAllocationSizeCounter.record(totalUsedBytes, PoolChunkAllocationType.USED.attributes);
+        cachePoolActiveAllocationCounter.record(allocatorStats.activeAllocationsHuge, PoolArenaType.HUGE.attributes);
+        cachePoolActiveAllocationSizeCounter.record(allocatorStats.totalAllocated,
+                PoolChunkAllocationType.ALLOCATED.attributes);
+        cachePoolActiveAllocationSizeCounter.record(allocatorStats.totalUsed, PoolChunkAllocationType.USED.attributes);
     }
 }
