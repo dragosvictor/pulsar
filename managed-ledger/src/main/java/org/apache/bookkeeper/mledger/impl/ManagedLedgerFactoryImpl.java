@@ -122,6 +122,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
 
     private final OpenTelemetryManagedLedgerStats openTelemetryManagedLedgerStats;
     private final OpenTelemetryManagedLedgerCursorStats openTelemetryManagedLedgerCursorStats;
+    private final OpenTelemetryManagedLedgerCacheStats openTelemetryManagedLedgerCacheStats;
 
     //indicate whether shutdown() is called.
     private volatile boolean closed;
@@ -232,6 +233,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
 
         openTelemetryManagedLedgerStats = new OpenTelemetryManagedLedgerStats(this, openTelemetry);
         openTelemetryManagedLedgerCursorStats = new OpenTelemetryManagedLedgerCursorStats(this, openTelemetry);
+        openTelemetryManagedLedgerCacheStats = new OpenTelemetryManagedLedgerCacheStats(this, openTelemetry);
     }
 
     static class DefaultBkFactory implements BookkeeperFactoryForCustomEnsemblePlacementPolicy {
@@ -628,6 +630,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
             }
         }));
         return FutureUtil.waitForAll(futures).thenAcceptAsync(__ -> {
+            openTelemetryManagedLedgerCacheStats.close();
             openTelemetryManagedLedgerCursorStats.close();
             openTelemetryManagedLedgerStats.close();
             //wait for tasks in scheduledExecutor executed.
