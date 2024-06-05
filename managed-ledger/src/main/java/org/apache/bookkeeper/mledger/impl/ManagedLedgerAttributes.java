@@ -18,6 +18,7 @@
  */
 package org.apache.bookkeeper.mledger.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import lombok.Data;
@@ -34,6 +35,15 @@ public class ManagedLedgerAttributes {
     public static final AttributeKey<String> PULSAR_MANAGED_LEDGER_OPERATION_STATUS =
             AttributeKey.stringKey("pulsar.managed_ledger.operation.status");
 
+    @VisibleForTesting
+    public enum OperationStatus {
+        ACTIVE,
+        SUCCESS,
+        FAILURE;
+        public final Attributes attributes =
+                Attributes.of(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, name().toLowerCase());
+    };
+
     private final Attributes attributes;
     private final Attributes attributesOperationSucceed;
     private final Attributes attributesOperationFailure;
@@ -46,11 +56,11 @@ public class ManagedLedgerAttributes {
                 PULSAR_MANAGER_LEDGER_NAME, ml.getName(),
                 OpenTelemetryAttributes.PULSAR_NAMESPACE, topicName.getNamespace()
         );
-        attributesOperationSucceed =
-                attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "succeed").build();
-        attributesOperationFailure =
-                attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "failure").build();
         attributesOperationActive =
-                attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "active").build();
+                Attributes.builder().putAll(attributes).putAll(OperationStatus.ACTIVE.attributes).build();
+        attributesOperationSucceed =
+                Attributes.builder().putAll(attributes).putAll(OperationStatus.SUCCESS.attributes).build();
+        attributesOperationFailure =
+                Attributes.builder().putAll(attributes).putAll(OperationStatus.FAILURE.attributes).build();
     }
 }

@@ -113,7 +113,6 @@ public class OpenTelemetryManagedCursorStats implements AutoCloseable {
         batchCallback.close();
     }
 
-
     private void recordMetrics(ManagedCursor cursor) {
         var stats = cursor.getStats();
         var cursorAttributesSet = cursor.getManagedCursorAttributes();
