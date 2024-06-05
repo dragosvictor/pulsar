@@ -20,24 +20,79 @@ package org.apache.bookkeeper.mledger.impl;
 
 import com.google.common.collect.Streams;
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.BatchCallback;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 import org.apache.bookkeeper.mledger.ManagedCursor;
 
 public class OpenTelemetryManagedLedgerCursorStats implements AutoCloseable {
 
-    private final ObservableLongMeasurement persistLedgerCounter;
+    // Replaces ['pulsar_ml_cursor_persistLedgerSucceed', 'pulsar_ml_cursor_persistLedgerErrors']
+    public static final String PERSIST_OPERATION_COUNTER = "pulsar.broker.managed_ledger.persist.operation.count";
+    private final ObservableLongMeasurement persistOperationCounter;
+
+    // Replaces ['pulsar_ml_cursor_persistZookeeperSucceed', 'pulsar_ml_cursor_persistZookeeperErrors']
+    public static final String PERSIST_OPERATION_METADATA_STORE_COUNTER =
+            "pulsar.broker.managed_ledger.persist.mds.operation.count";
+    private final ObservableLongMeasurement persistOperationMetadataStoreCounter;
+
+    // Replaces pulsar_ml_cursor_nonContiguousDeletedMessagesRange
+    public static final String NON_CONTIGUOUS_MESSAGE_RANGE_COUNTER =
+            "pulsar.broker.managed_ledger.message_range.count";
+    private final ObservableLongMeasurement nonContiguousMessageRangeCounter;
+
+    // Replaces pulsar_ml_cursor_writeLedgerSize
+    public static final String OUTGOING_BYTE_COUNTER = "pulsar.broker.managed_ledger.cursor.outgoing.size";
+    private final ObservableLongMeasurement outgoingByteCounter;
+
+    // Replaces pulsar_ml_cursor_writeLedgerLogicalSize
+    public static final String OUTGOING_BYTE_LOGICAL_COUNTER =
+            "pulsar.broker.managed_ledger.cursor.outgoing.logical.size";
+    private final ObservableLongMeasurement outgoingByteLogicalCounter;
+
+    // Replaces pulsar_ml_cursor_readLedgerSize
+    public static final String INCOMING_BYTE_COUNTER = "pulsar.broker.managed_ledger.cursor.incoming.size";
+    private final ObservableLongMeasurement incomingByteCounter;
 
     private final BatchCallback batchCallback;
 
     public OpenTelemetryManagedLedgerCursorStats(ManagedLedgerFactoryImpl factory, OpenTelemetry openTelemetry) {
         var meter = openTelemetry.getMeter("pulsar.managed_ledger.cursor"); // TODO
 
-        persistLedgerCounter = meter.upDownCounterBuilder("persist_ledger_counter")
-            .setDescription("Number of times a ledger is persisted")
-            .buildObserver();
+        persistOperationCounter = meter
+                .counterBuilder(PERSIST_OPERATION_COUNTER)
+                .setUnit("{operation}")
+                .setDescription("The number of acknowledgment operations on the ledger.")
+                .buildObserver();
+
+        persistOperationMetadataStoreCounter = meter
+                .counterBuilder(PERSIST_OPERATION_METADATA_STORE_COUNTER)
+                .setUnit("{operation}")
+                .setDescription("The number of acknowledgment operations in the metadata store.")
+                .buildObserver();
+
+        nonContiguousMessageRangeCounter = meter
+                .upDownCounterBuilder(NON_CONTIGUOUS_MESSAGE_RANGE_COUNTER)
+                .setUnit("{range}")
+                .setDescription("The number of non-contiguous deleted messages ranges.")
+                .buildObserver();
+
+        outgoingByteCounter = meter
+                .counterBuilder(OUTGOING_BYTE_COUNTER)
+                .setUnit("{By}")
+                .setDescription("The size of write to ledger.")
+                .buildObserver();
+
+        outgoingByteLogicalCounter = meter
+                .counterBuilder(OUTGOING_BYTE_LOGICAL_COUNTER)
+                .setUnit("{By}")
+                .setDescription("The size of write to ledger (not including replicas).")
+                .buildObserver();
+
+        incomingByteCounter = meter
+                .counterBuilder(INCOMING_BYTE_COUNTER)
+                .setUnit("{By}")
+                .setDescription("The size of read from ledger.")
+                .buildObserver();
 
         batchCallback = meter.batchCallback(() -> factory.getManagedLedgers()
                         .values()
@@ -45,8 +100,12 @@ public class OpenTelemetryManagedLedgerCursorStats implements AutoCloseable {
                         .map(ManagedLedgerImpl::getCursors)
                         .flatMap(Streams::stream)
                         .forEach(this::recordMetrics),
-                persistLedgerCounter
-        );
+                persistOperationCounter,
+                persistOperationMetadataStoreCounter,
+                nonContiguousMessageRangeCounter,
+                outgoingByteCounter,
+                outgoingByteLogicalCounter,
+                incomingByteCounter);
     }
 
     @Override
@@ -54,32 +113,24 @@ public class OpenTelemetryManagedLedgerCursorStats implements AutoCloseable {
         batchCallback.close();
     }
 
-    public static final AttributeKey<String> CURSOR_NAME = AttributeKey.stringKey("cursor_name");
-    public static final AttributeKey<String> OPERATION_STATUS = AttributeKey.stringKey("operation_status");
 
     private void recordMetrics(ManagedCursor cursor) {
         var stats = cursor.getStats();
-        var attributes = Attributes.of(
-                ManagedLedgerMBeanImpl.PULSAR_MANAGER_LEDGER_NAME, stats.getLedgerName(),
-                CURSOR_NAME, cursor.getName());
-        var attributesSucceed = Attributes.of(
-                ManagedLedgerMBeanImpl.PULSAR_MANAGER_LEDGER_NAME, stats.getLedgerName(),
-                CURSOR_NAME, cursor.getName(),
-                OPERATION_STATUS, "succeed");
-        var attributesFailed = Attributes.of(
-                ManagedLedgerMBeanImpl.PULSAR_MANAGER_LEDGER_NAME, stats.getLedgerName(),
-                CURSOR_NAME, cursor.getName(),
-                OPERATION_STATUS, "failed");
+        var cursorAttributesSet = cursor.getManagedCursorAttributes();
+        var attributes = cursorAttributesSet.getAttributes();
+        var attributesSucceed = cursorAttributesSet.getAttributesOperationSucceed();
+        var attributesFailed = cursorAttributesSet.getAttributesOperationFailure();
 
-        persistLedgerCounter.record(stats.getPersistLedgerSucceed(), attributesSucceed);
-        persistLedgerCounter.record(stats.getPersistLedgerErrors(), attributesFailed);
+        persistOperationCounter.record(stats.getPersistLedgerSucceed(), attributesSucceed);
+        persistOperationCounter.record(stats.getPersistLedgerErrors(), attributesFailed);
 
-        persistLedgerCounter.record(cursor.getTotalNonContiguousDeletedMessagesRange(), attributes);
-        persistLedgerCounter.record(stats.getReadCursorLedgerSize(), attributes);
-        persistLedgerCounter.record(stats.getWriteCursorLedgerSize(), attributes);
-        persistLedgerCounter.record(stats.getWriteCursorLedgerLogicalSize(), attributes);
+        persistOperationMetadataStoreCounter.record(stats.getPersistZookeeperSucceed(), attributesSucceed);
+        persistOperationMetadataStoreCounter.record(stats.getPersistZookeeperErrors(), attributesFailed);
 
-        persistLedgerCounter.record(stats.getPersistZookeeperSucceed(), attributesSucceed);
-        persistLedgerCounter.record(stats.getPersistZookeeperErrors(), attributesFailed);
+        nonContiguousMessageRangeCounter.record(cursor.getTotalNonContiguousDeletedMessagesRange(), attributes);
+
+        outgoingByteCounter.record(stats.getWriteCursorLedgerSize(), attributes);
+        outgoingByteLogicalCounter.record(stats.getWriteCursorLedgerLogicalSize(), attributes);
+        incomingByteCounter.record(stats.getReadCursorLedgerSize(), attributes);
     }
 }
