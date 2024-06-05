@@ -121,7 +121,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
     private final MetadataStore metadataStore;
 
     private final OpenTelemetryManagedLedgerStats openTelemetryManagedLedgerStats;
-    private final OpenTelemetryManagedLedgerCursorStats openTelemetryManagedLedgerCursorStats;
+    private final OpenTelemetryManagedCursorStats openTelemetryManagedCursorStats;
     private final OpenTelemetryManagedLedgerCacheStats openTelemetryManagedLedgerCacheStats;
 
     //indicate whether shutdown() is called.
@@ -232,7 +232,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
         metadataStore.registerSessionListener(this::handleMetadataStoreNotification);
 
         openTelemetryManagedLedgerStats = new OpenTelemetryManagedLedgerStats(this, openTelemetry);
-        openTelemetryManagedLedgerCursorStats = new OpenTelemetryManagedLedgerCursorStats(this, openTelemetry);
+        openTelemetryManagedCursorStats = new OpenTelemetryManagedCursorStats(this, openTelemetry);
         openTelemetryManagedLedgerCacheStats = new OpenTelemetryManagedLedgerCacheStats(this, openTelemetry);
     }
 
@@ -631,7 +631,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
         }));
         return FutureUtil.waitForAll(futures).thenAcceptAsync(__ -> {
             openTelemetryManagedLedgerCacheStats.close();
-            openTelemetryManagedLedgerCursorStats.close();
+            openTelemetryManagedCursorStats.close();
             openTelemetryManagedLedgerStats.close();
             //wait for tasks in scheduledExecutor executed.
             scheduledExecutor.shutdownNow();
