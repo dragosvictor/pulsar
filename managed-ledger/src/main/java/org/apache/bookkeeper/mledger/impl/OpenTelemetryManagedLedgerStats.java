@@ -19,7 +19,6 @@
 package org.apache.bookkeeper.mledger.impl;
 
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.metrics.BatchCallback;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
@@ -130,15 +129,13 @@ public class OpenTelemetryManagedLedgerStats implements AutoCloseable {
         batchCallback.close();
     }
 
-    private static final AttributeKey<String> PULSAR_MANAGED_LEDGER_OPERATION_STATUS =
-            AttributeKey.stringKey("pulsar.managed_ledger.operation.status");
-
     private void recordMetricsForManagedLedger(ManagedLedgerImpl ml) {
         var stats = ml.getMbean();
-        var attributes = stats.getAttributes();
-        var attributesSucceed = attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "succeed").build();
-        var attributesFailure = attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "failure").build();
-        var attributesActive = attributes.toBuilder().put(PULSAR_MANAGED_LEDGER_OPERATION_STATUS, "active").build();
+        var ledgerAttributeSet = ml.getManagedLedgerAttributes();
+        var attributes = ledgerAttributeSet.getAttributes();
+        var attributesSucceed = ledgerAttributeSet.getAttributesOperationSucceed();
+        var attributesFailure = ledgerAttributeSet.getAttributesOperationFailure();
+        var attributesActive = ledgerAttributeSet.getAttributesOperationActive();
 
         var addEntryTotal = stats.getAddEntrySucceedTotal();
         var addEntrySucceed = stats.getAddEntrySucceedTotal();

@@ -18,10 +18,7 @@
  */
 package org.apache.bookkeeper.mledger.impl;
 
-import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.common.Attributes;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.bookkeeper.mledger.ManagedCursor;
 import org.apache.bookkeeper.mledger.ManagedLedgerMXBean;
@@ -31,17 +28,11 @@ import org.apache.pulsar.common.stats.Rate;
 
 public class ManagedLedgerMBeanImpl implements ManagedLedgerMXBean {
 
-    public static final AttributeKey<String> PULSAR_MANAGER_LEDGER_NAME =
-            AttributeKey.stringKey("pulsar.managed_ledger.name");
-
     public static final long[] ENTRY_LATENCY_BUCKETS_USEC = { 500, 1_000, 5_000, 10_000, 20_000, 50_000, 100_000,
             200_000, 1000_000 };
     public static final long[] ENTRY_SIZE_BUCKETS_BYTES = { 128, 512, 1024, 2048, 4096, 16_384, 102_400, 1_048_576 };
 
     private final ManagedLedgerImpl managedLedger;
-    private volatile Attributes attributes;
-    private static final AtomicReferenceFieldUpdater<ManagedLedgerMBeanImpl, Attributes> ATTRIBUTES_FIELD_UPDATER =
-            AtomicReferenceFieldUpdater.newUpdater(ManagedLedgerMBeanImpl.class, Attributes.class, "attributes");
 
     private final Rate addEntryOps = new Rate();
     private final Rate addEntryWithReplicasOps = new Rate();
@@ -70,14 +61,6 @@ public class ManagedLedgerMBeanImpl implements ManagedLedgerMXBean {
 
     public ManagedLedgerMBeanImpl(ManagedLedgerImpl managedLedger) {
         this.managedLedger = managedLedger;
-    }
-
-    public Attributes getAttributes() {
-        if (attributes != null) {
-            return attributes;
-        }
-        return ATTRIBUTES_FIELD_UPDATER.updateAndGet(this,
-                old -> old != null ? old : Attributes.of(PULSAR_MANAGER_LEDGER_NAME, managedLedger.getName()));
     }
 
     public void refreshStats(long period, TimeUnit unit) {
