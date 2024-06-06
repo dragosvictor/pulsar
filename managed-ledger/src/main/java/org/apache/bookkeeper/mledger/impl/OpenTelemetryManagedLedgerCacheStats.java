@@ -18,7 +18,6 @@
  */
 package org.apache.bookkeeper.mledger.impl;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -31,7 +30,6 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
 
     public static final AttributeKey<String> POOL_ARENA_TYPE =
             AttributeKey.stringKey("pulsar.managed_ledger.pool.arena.type");
-    @VisibleForTesting
     public enum PoolArenaType {
         SMALL,
         NORMAL,
@@ -41,7 +39,6 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
 
     public static final AttributeKey<String> POOL_CHUNK_ALLOCATION_TYPE =
             AttributeKey.stringKey("pulsar.managed_ledger.pool.chunk.allocation.type");
-    @VisibleForTesting
     public enum PoolChunkAllocationType {
         ALLOCATED,
         USED;
@@ -50,12 +47,19 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
 
     public static final AttributeKey<String> CACHE_ENTRY_STATUS =
             AttributeKey.stringKey("pulsar.managed_ledger.entry.status");
-    @VisibleForTesting
     public enum CacheEntryStatus {
         ACTIVE,
         EVICTED,
         INSERTED;
         public final Attributes attributes = Attributes.of(CACHE_ENTRY_STATUS, name().toLowerCase());
+    }
+
+    public static final AttributeKey<String> CACHE_OPERATION_STATUS =
+            AttributeKey.stringKey("pulsar.managed_ledger.cache.operation.status");
+    public enum CacheOperationStatus {
+        HIT,
+        MISS;
+        public final Attributes attributes = Attributes.of(CACHE_OPERATION_STATUS, name().toLowerCase());
     }
 
     // Replaces pulsar_ml_count
@@ -76,21 +80,13 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
     public static final String CACHE_SIZE_COUNTER = "pulsar.broker.managed_ledger.cache.entry.size";
     private final ObservableLongMeasurement cacheSizeCounter;
 
-    // Replaces pulsar_ml_cache_hits_rate
-    public static final String CACHE_HIT_COUNTER = "pulsar.broker.managed_ledger.cache.hit.count";
-    private final ObservableLongMeasurement cacheHitCounter;
+    // Replaces pulsar_ml_cache_hits_rate, pulsar_ml_cache_misses_rate
+    public static final String CACHE_HIT_COUNTER = "pulsar.broker.managed_ledger.cache.operation.count";
+    private final ObservableLongMeasurement cacheOperationCounter;
 
-    // Replaces pulsar_ml_cache_hits_throughput
-    public static final String CACHE_HIT_BYTES_COUNTER = "pulsar.broker.managed_ledger.cache.hit.size";
-    private final ObservableLongMeasurement cacheHitBytesCounter;
-
-    // Replaces pulsar_ml_cache_misses_rate
-    public static final String CACHE_MISS_COUNTER = "pulsar.broker.managed_ledger.cache.miss.count";
-    private final ObservableLongMeasurement cacheMissCounter;
-
-    // Replaces pulsar_ml_cache_misses_throughput
-    public static final String CACHE_MISS_BYTES_COUNTER = "pulsar.broker.managed_ledger.cache.miss.size";
-    private final ObservableLongMeasurement cacheMissBytesCounter;
+    // Replaces pulsar_ml_cache_hits_throughput, pulsar_ml_cache_misses_throughput
+    public static final String CACHE_HIT_BYTES_COUNTER = "pulsar.broker.managed_ledger.cache.operation.size";
+    private final ObservableLongMeasurement cacheOperationBytesCounter;
 
     // Replaces 'pulsar_ml_cache_pool_active_allocations',
     //          'pulsar_ml_cache_pool_active_allocations_huge',
@@ -134,28 +130,16 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
                 .setDescription("The byte amount of entries stored in the entry cache.")
                 .buildObserver();
 
-        cacheHitCounter = meter
+        cacheOperationCounter = meter
                 .counterBuilder(CACHE_HIT_COUNTER)
                 .setUnit("{entry}")
-                .setDescription("The number of cache hits.")
+                .setDescription("The number of cache operations.")
                 .buildObserver();
 
-        cacheHitBytesCounter = meter
+        cacheOperationBytesCounter = meter
                 .counterBuilder(CACHE_HIT_BYTES_COUNTER)
                 .setUnit("{By}")
-                .setDescription("The byte amount of data retrieved from cache hits.")
-                .buildObserver();
-
-        cacheMissCounter = meter
-                .counterBuilder(CACHE_MISS_COUNTER)
-                .setUnit("{entry}")
-                .setDescription("The number of cache misses.")
-                .buildObserver();
-
-        cacheMissBytesCounter = meter
-                .counterBuilder(CACHE_MISS_BYTES_COUNTER)
-                .setUnit("{By}")
-                .setDescription("The byte amount of data not retrieved due to cache misses.")
+                .setDescription("The byte amount of data retrieved from cache operations.")
                 .buildObserver();
 
         cachePoolActiveAllocationCounter = meter
@@ -175,10 +159,8 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
                 cacheEvictionOperationCounter,
                 cacheEntryCounter,
                 cacheSizeCounter,
-                cacheHitCounter,
-                cacheHitBytesCounter,
-                cacheMissCounter,
-                cacheMissBytesCounter,
+                cacheOperationCounter,
+                cacheOperationBytesCounter,
                 cachePoolActiveAllocationCounter,
                 cachePoolActiveAllocationSizeCounter);
     }
@@ -202,10 +184,10 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
         cacheEntryCounter.record(entriesOut, CacheEntryStatus.EVICTED.attributes);
         cacheSizeCounter.record(stats.getCacheUsedSize());
 
-        cacheHitCounter.record(stats.getCacheHitsTotal());
-        cacheHitBytesCounter.record(stats.getCacheHitsBytesTotal());
-        cacheMissCounter.record(stats.getCacheMissesTotal());
-        cacheMissBytesCounter.record(stats.getCacheMissesBytesTotal());
+        cacheOperationCounter.record(stats.getCacheHitsTotal(), CacheOperationStatus.HIT.attributes);
+        cacheOperationBytesCounter.record(stats.getCacheHitsBytesTotal(), CacheOperationStatus.HIT.attributes);
+        cacheOperationCounter.record(stats.getCacheMissesTotal(), CacheOperationStatus.HIT.attributes);
+        cacheOperationBytesCounter.record(stats.getCacheMissesBytesTotal(), CacheOperationStatus.HIT.attributes);
 
         var allocatorStats = new PooledByteBufAllocatorStats(RangeEntryCacheImpl.ALLOCATOR);
         cachePoolActiveAllocationCounter.record(allocatorStats.activeAllocationsSmall, PoolArenaType.SMALL.attributes);

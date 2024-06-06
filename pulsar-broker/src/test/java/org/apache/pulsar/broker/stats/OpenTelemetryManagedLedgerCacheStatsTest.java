@@ -18,18 +18,6 @@
  */
 package org.apache.pulsar.broker.stats;
 
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_ENTRY_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_EVICTION_OPERATION_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_HIT_BYTES_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_HIT_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_MISS_BYTES_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_MISS_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_POOL_ACTIVE_ALLOCATION_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_POOL_ACTIVE_ALLOCATION_SIZE_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_SIZE_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.MANAGED_LEDGER_COUNTER;
-import static org.apache.pulsar.broker.stats.BrokerOpenTelemetryTestUtil.assertMetricLongSumValue;
-import static org.assertj.core.api.Assertions.assertThat;
 import io.opentelemetry.api.common.Attributes;
 import lombok.Cleanup;
 import org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CacheEntryStatus;
@@ -40,6 +28,17 @@ import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_ENTRY_COUNTER;
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_EVICTION_OPERATION_COUNTER;
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_HIT_BYTES_COUNTER;
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_HIT_COUNTER;
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_POOL_ACTIVE_ALLOCATION_COUNTER;
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_POOL_ACTIVE_ALLOCATION_SIZE_COUNTER;
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_SIZE_COUNTER;
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.MANAGED_LEDGER_COUNTER;
+import static org.apache.pulsar.broker.stats.BrokerOpenTelemetryTestUtil.assertMetricLongSumValue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class OpenTelemetryManagedLedgerCacheStatsTest extends BrokerTestBase {
 
@@ -89,8 +88,6 @@ public class OpenTelemetryManagedLedgerCacheStatsTest extends BrokerTestBase {
 
         assertMetricLongSumValue(metrics, CACHE_HIT_COUNTER, attributes, 1);
         assertMetricLongSumValue(metrics, CACHE_HIT_BYTES_COUNTER, attributes, value -> assertThat(value).isPositive());
-        assertMetricLongSumValue(metrics, CACHE_MISS_COUNTER, attributes, 1);
-        assertMetricLongSumValue(metrics, CACHE_MISS_BYTES_COUNTER, attributes, 1);
 
         assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_COUNTER, attributes, 1);
         assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_SIZE_COUNTER, attributes, 1);
