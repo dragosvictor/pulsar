@@ -18,20 +18,10 @@
  */
 package org.apache.bookkeeper.mledger.impl;
 
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertTrue;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import lombok.Cleanup;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.mledger.AsyncCallbacks;
@@ -43,9 +33,29 @@ import org.apache.bookkeeper.mledger.ManagedLedgerFactoryConfig;
 import org.apache.bookkeeper.mledger.impl.cache.EntryCache;
 import org.apache.bookkeeper.mledger.impl.cache.EntryCacheDisabled;
 import org.apache.bookkeeper.mledger.impl.cache.EntryCacheManager;
+import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.test.MockedBookKeeperTestCase;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.assertThat;
+import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_ENTRY_COUNTER;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 public class EntryCacheManagerTest extends MockedBookKeeperTestCase {
 
@@ -74,8 +84,22 @@ public class EntryCacheManagerTest extends MockedBookKeeperTestCase {
         config.setMaxCacheSize(10);
         config.setCacheEvictionWatermark(0.8);
 
+        @Cleanup
+        var inMemoryMetricReader = InMemoryMetricReader.create();
+
+        @Cleanup
+        var openTelemetry = AutoConfiguredOpenTelemetrySdk.builder()
+                .addMeterProviderCustomizer(
+                        (meterProviderBuilder, __) -> meterProviderBuilder.registerMetricReader(inMemoryMetricReader))
+                .build()
+                .getOpenTelemetrySdk();
+
         @Cleanup("shutdown")
-        ManagedLedgerFactoryImpl factory2 = new ManagedLedgerFactoryImpl(metadataStore, bkc, config);
+        var factory2 = new ManagedLedgerFactoryImpl(metadataStore,
+                ensemblePlacementPolicyMetadata -> CompletableFuture.completedFuture(bkc),
+                config,
+                NullStatsLogger.INSTANCE,
+                openTelemetry);
 
         EntryCacheManager cacheManager = factory2.getEntryCacheManager();
         EntryCache cache1 = cacheManager.getEntryCache(ml1);
@@ -97,6 +121,8 @@ public class EntryCacheManagerTest extends MockedBookKeeperTestCase {
         assertEquals(factory2.getMbean().getCacheInsertedEntriesCount(), 2);
         assertEquals(factory2.getMbean().getCacheEvictedEntriesCount(), 0);
         assertEquals(factory2.getMbean().getCacheEntriesCount(), 2);
+        var otelMetrics = inMemoryMetricReader.collectAllMetrics();
+        assertMetricLongSumValue(otelMetrics, CACHE_ENTRY_COUNTER, Attributes.empty(), 0L);
 
         cache2.insert(EntryImpl.create(2, 0, new byte[1]));
         cache2.insert(EntryImpl.create(2, 1, new byte[1]));
@@ -407,4 +433,21 @@ public class EntryCacheManagerTest extends MockedBookKeeperTestCase {
         verify(lh).readAsync(anyLong(), anyLong());
     }
 
+    public static void assertMetricLongSumValue(Collection<MetricData> metrics, String metricName,
+                                                Attributes attributes, long expected) {
+        assertMetricLongSumValue(metrics, metricName, attributes, value -> assertThat(value).isEqualTo(expected));
+    }
+
+    public static void assertMetricLongSumValue(Collection<MetricData> metrics, String metricName,
+                                                Attributes attributes, Consumer<Long> valueConsumer) {
+        assertThat(metrics)
+                .anySatisfy(metric -> assertThat(metric)
+                        .hasName(metricName)
+                        .hasLongSumSatisfying(sum -> sum.satisfies(
+                                sumData -> org.assertj.core.api.Assertions.assertThat(sumData.getPoints()).anySatisfy(
+                                        point -> {
+                                            org.assertj.core.api.Assertions.assertThat(point.getAttributes()).isEqualTo(attributes);
+                                            valueConsumer.accept(point.getValue());
+                                        }))));
+    }
 }
