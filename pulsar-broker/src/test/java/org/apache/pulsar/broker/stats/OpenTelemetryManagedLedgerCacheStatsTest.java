@@ -32,7 +32,7 @@ import static org.apache.pulsar.broker.stats.BrokerOpenTelemetryTestUtil.assertM
 import static org.assertj.core.api.Assertions.assertThat;
 import io.opentelemetry.api.common.Attributes;
 import lombok.Cleanup;
-import org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CacheEntryType;
+import org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CacheEntryStatus;
 import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.service.BrokerTestBase;
 import org.apache.pulsar.broker.testcontext.PulsarTestContext;
@@ -82,9 +82,9 @@ public class OpenTelemetryManagedLedgerCacheStatsTest extends BrokerTestBase {
 
         assertMetricLongSumValue(metrics, MANAGED_LEDGER_COUNTER, attributes, 2);
         assertMetricLongSumValue(metrics, CACHE_EVICTION_OPERATION_COUNTER, attributes, 0);
-        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryType.ACTIVE.attributes, 1);
-        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryType.INSERTED.attributes, 1);
-        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryType.EVICTED.attributes, 0);
+        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.ACTIVE.attributes, 1);
+        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.INSERTED.attributes, 1);
+        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.EVICTED.attributes, 0);
         assertMetricLongSumValue(metrics, CACHE_SIZE_COUNTER, attributes, value -> assertThat(value).isPositive());
 
         assertMetricLongSumValue(metrics, CACHE_HIT_COUNTER, attributes, 1);

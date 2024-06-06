@@ -29,7 +29,8 @@ import org.apache.bookkeeper.mledger.impl.cache.RangeEntryCacheImpl;
 
 public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
 
-    public static final AttributeKey<String> POOL_ARENA_TYPE = AttributeKey.stringKey("pool_arena_type");
+    public static final AttributeKey<String> POOL_ARENA_TYPE =
+            AttributeKey.stringKey("pulsar.managed_ledger.pool.arena.type");
     @VisibleForTesting
     public enum PoolArenaType {
         SMALL,
@@ -39,7 +40,7 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
     }
 
     public static final AttributeKey<String> POOL_CHUNK_ALLOCATION_TYPE =
-            AttributeKey.stringKey("pool_chunk_allocation_type");
+            AttributeKey.stringKey("pulsar.managed_ledger.pool.chunk.allocation.type");
     @VisibleForTesting
     public enum PoolChunkAllocationType {
         ALLOCATED,
@@ -47,14 +48,16 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
         public final Attributes attributes = Attributes.of(POOL_CHUNK_ALLOCATION_TYPE, name().toLowerCase());
     }
 
-    public static final AttributeKey<String> CACHE_ENTRY_TYPE = AttributeKey.stringKey("cache_entry_type");
+    public static final AttributeKey<String> CACHE_ENTRY_STATUS =
+            AttributeKey.stringKey("pulsar.managed_ledger.entry.status");
     @VisibleForTesting
-    public enum CacheEntryType {
+    public enum CacheEntryStatus {
         ACTIVE,
         EVICTED,
         INSERTED;
-        public final Attributes attributes = Attributes.of(CACHE_ENTRY_TYPE, name().toLowerCase());
+        public final Attributes attributes = Attributes.of(CACHE_ENTRY_STATUS, name().toLowerCase());
     }
+
     // Replaces pulsar_ml_count
     public static final String MANAGED_LEDGER_COUNTER = "pulsar.broker.managed_ledger.count";
     private final ObservableLongMeasurement managedLedgerCounter;
@@ -194,9 +197,9 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
         var entriesOut = stats.getCacheEvictedEntriesCount();
         var entriesIn = stats.getCacheInsertedEntriesCount();
         var entriesActive = entriesIn - entriesOut;
-        cacheEntryCounter.record(entriesActive, CacheEntryType.ACTIVE.attributes);
-        cacheEntryCounter.record(entriesIn, CacheEntryType.INSERTED.attributes);
-        cacheEntryCounter.record(entriesOut, CacheEntryType.EVICTED.attributes);
+        cacheEntryCounter.record(entriesActive, CacheEntryStatus.ACTIVE.attributes);
+        cacheEntryCounter.record(entriesIn, CacheEntryStatus.INSERTED.attributes);
+        cacheEntryCounter.record(entriesOut, CacheEntryStatus.EVICTED.attributes);
         cacheSizeCounter.record(stats.getCacheUsedSize());
 
         cacheHitCounter.record(stats.getCacheHitsTotal());
