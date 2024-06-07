@@ -20,24 +20,28 @@ package org.apache.pulsar.broker.stats;
 
 import io.opentelemetry.api.common.Attributes;
 import lombok.Cleanup;
-import org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CacheEntryStatus;
 import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.service.BrokerTestBase;
+import org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CacheEntryStatus;
+import org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CacheOperationStatus;
+import org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.PoolArenaType;
+import org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.PoolChunkAllocationType;
 import org.apache.pulsar.broker.testcontext.PulsarTestContext;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
+import org.awaitility.Awaitility;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_ENTRY_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_EVICTION_OPERATION_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_HIT_BYTES_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_HIT_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_POOL_ACTIVE_ALLOCATION_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_POOL_ACTIVE_ALLOCATION_SIZE_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.CACHE_SIZE_COUNTER;
-import static org.apache.bookkeeper.mledger.impl.OpenTelemetryManagedLedgerCacheStats.MANAGED_LEDGER_COUNTER;
 import static org.apache.pulsar.broker.stats.BrokerOpenTelemetryTestUtil.assertMetricLongSumValue;
+import static org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CACHE_ENTRY_COUNTER;
+import static org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CACHE_EVICTION_OPERATION_COUNTER;
+import static org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CACHE_OPERATION_BYTES_COUNTER;
+import static org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CACHE_OPERATION_COUNTER;
+import static org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CACHE_POOL_ACTIVE_ALLOCATION_COUNTER;
+import static org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CACHE_POOL_ACTIVE_ALLOCATION_SIZE_COUNTER;
+import static org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.CACHE_SIZE_COUNTER;
+import static org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats.MANAGED_LEDGER_COUNTER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class OpenTelemetryManagedLedgerCacheStatsTest extends BrokerTestBase {
@@ -66,30 +70,59 @@ public class OpenTelemetryManagedLedgerCacheStatsTest extends BrokerTestBase {
 
         @Cleanup
         var producer = pulsarClient.newProducer().topic(topicName).create();
-        producer.send("test".getBytes());
 
         @Cleanup
-        var consumer = pulsarClient.newConsumer()
+        var consumer1 = pulsarClient.newConsumer()
                 .topic(topicName)
                 .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
                 .subscriptionName(BrokerTestUtil.newUniqueName("sub"))
                 .subscribe();
-        consumer.receive();
+
+        @Cleanup
+        var consumer2 = pulsarClient.newConsumer()
+                .topic(topicName)
+                .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
+                .subscriptionName(BrokerTestUtil.newUniqueName("sub"))
+                .subscribe();
+
+        producer.send("test".getBytes());
+        consumer1.receive();
+
+        Awaitility.await().untilAsserted(() -> {
+            var metrics = pulsarTestContext.getOpenTelemetryMetricReader().collectAllMetrics();
+            assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.ACTIVE.attributes,
+                    value -> assertThat(value).isNotNegative());
+            assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.INSERTED.attributes,
+                    value -> assertThat(value).isPositive());
+            assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.EVICTED.attributes,
+                    value -> assertThat(value).isPositive());
+            assertMetricLongSumValue(metrics, CACHE_SIZE_COUNTER, Attributes.empty(),
+                    value -> assertThat(value).isNotNegative());
+        });
 
         var metrics = pulsarTestContext.getOpenTelemetryMetricReader().collectAllMetrics();
-        var attributes = Attributes.empty();
 
-        assertMetricLongSumValue(metrics, MANAGED_LEDGER_COUNTER, attributes, 2);
-        assertMetricLongSumValue(metrics, CACHE_EVICTION_OPERATION_COUNTER, attributes, 0);
-        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.ACTIVE.attributes, 1);
-        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.INSERTED.attributes, 1);
-        assertMetricLongSumValue(metrics, CACHE_ENTRY_COUNTER, CacheEntryStatus.EVICTED.attributes, 0);
-        assertMetricLongSumValue(metrics, CACHE_SIZE_COUNTER, attributes, value -> assertThat(value).isPositive());
+        assertMetricLongSumValue(metrics, MANAGED_LEDGER_COUNTER, Attributes.empty(), 2);
+        assertMetricLongSumValue(metrics, CACHE_EVICTION_OPERATION_COUNTER, Attributes.empty(), 0);
 
-        assertMetricLongSumValue(metrics, CACHE_HIT_COUNTER, attributes, 1);
-        assertMetricLongSumValue(metrics, CACHE_HIT_BYTES_COUNTER, attributes, value -> assertThat(value).isPositive());
+        assertMetricLongSumValue(metrics, CACHE_OPERATION_COUNTER, CacheOperationStatus.HIT.attributes,
+                value -> assertThat(value).isPositive());
+        assertMetricLongSumValue(metrics, CACHE_OPERATION_BYTES_COUNTER, CacheOperationStatus.HIT.attributes,
+                value -> assertThat(value).isPositive());
+        assertMetricLongSumValue(metrics, CACHE_OPERATION_COUNTER, CacheOperationStatus.MISS.attributes,
+                value -> assertThat(value).isNotNegative());
+        assertMetricLongSumValue(metrics, CACHE_OPERATION_BYTES_COUNTER, CacheOperationStatus.MISS.attributes,
+                value -> assertThat(value).isNotNegative());
 
-        assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_COUNTER, attributes, 1);
-        assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_SIZE_COUNTER, attributes, 1);
+        assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_COUNTER, PoolArenaType.SMALL.attributes,
+                value -> assertThat(value).isNotNegative());
+        assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_COUNTER, PoolArenaType.NORMAL.attributes,
+                value -> assertThat(value).isNotNegative());
+        assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_COUNTER, PoolArenaType.HUGE.attributes,
+                value -> assertThat(value).isNotNegative());
+        assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_SIZE_COUNTER,
+                PoolChunkAllocationType.ALLOCATED.attributes, value -> assertThat(value).isNotNegative());
+        assertMetricLongSumValue(metrics, CACHE_POOL_ACTIVE_ALLOCATION_SIZE_COUNTER,
+                PoolChunkAllocationType.USED.attributes, value -> assertThat(value).isNotNegative());
     }
 }

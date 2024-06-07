@@ -16,15 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.bookkeeper.mledger.impl;
+package org.apache.pulsar.broker.stats;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.BatchCallback;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
+import org.apache.bookkeeper.mledger.impl.ManagedLedgerFactoryImpl;
 import org.apache.bookkeeper.mledger.impl.cache.PooledByteBufAllocatorStats;
 import org.apache.bookkeeper.mledger.impl.cache.RangeEntryCacheImpl;
+import org.apache.pulsar.broker.PulsarService;
 
 public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
 
@@ -81,11 +82,11 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
     private final ObservableLongMeasurement cacheSizeCounter;
 
     // Replaces pulsar_ml_cache_hits_rate, pulsar_ml_cache_misses_rate
-    public static final String CACHE_HIT_COUNTER = "pulsar.broker.managed_ledger.cache.operation.count";
+    public static final String CACHE_OPERATION_COUNTER = "pulsar.broker.managed_ledger.cache.operation.count";
     private final ObservableLongMeasurement cacheOperationCounter;
 
     // Replaces pulsar_ml_cache_hits_throughput, pulsar_ml_cache_misses_throughput
-    public static final String CACHE_HIT_BYTES_COUNTER = "pulsar.broker.managed_ledger.cache.operation.size";
+    public static final String CACHE_OPERATION_BYTES_COUNTER = "pulsar.broker.managed_ledger.cache.operation.size";
     private final ObservableLongMeasurement cacheOperationBytesCounter;
 
     // Replaces 'pulsar_ml_cache_pool_active_allocations',
@@ -103,8 +104,8 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
 
     private final BatchCallback batchCallback;
 
-    public OpenTelemetryManagedLedgerCacheStats(ManagedLedgerFactoryImpl factory, OpenTelemetry openTelemetry) {
-        var meter = openTelemetry.getMeter("pulsar.managed_ledger.cache");
+    public OpenTelemetryManagedLedgerCacheStats(PulsarService pulsar) {
+        var meter = pulsar.getOpenTelemetry().getMeter();
 
         managedLedgerCounter = meter
                 .upDownCounterBuilder(MANAGED_LEDGER_COUNTER)
@@ -131,13 +132,13 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
                 .buildObserver();
 
         cacheOperationCounter = meter
-                .counterBuilder(CACHE_HIT_COUNTER)
+                .counterBuilder(CACHE_OPERATION_COUNTER)
                 .setUnit("{entry}")
                 .setDescription("The number of cache operations.")
                 .buildObserver();
 
         cacheOperationBytesCounter = meter
-                .counterBuilder(CACHE_HIT_BYTES_COUNTER)
+                .counterBuilder(CACHE_OPERATION_BYTES_COUNTER)
                 .setUnit("{By}")
                 .setDescription("The byte amount of data retrieved from cache operations.")
                 .buildObserver();
@@ -154,7 +155,12 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
                 .setDescription("The memory allocated in the direct arena.")
                 .buildObserver();
 
-        batchCallback = meter.batchCallback(() -> recordMetrics(factory),
+
+        batchCallback = meter.batchCallback(() -> {
+                    if (pulsar.getManagedLedgerFactory() instanceof ManagedLedgerFactoryImpl managedLedgerFactoryImpl) {
+                        recordMetrics(managedLedgerFactoryImpl);
+                    }
+                },
                 managedLedgerCounter,
                 cacheEvictionOperationCounter,
                 cacheEntryCounter,
@@ -171,7 +177,7 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
     }
 
     private void recordMetrics(ManagedLedgerFactoryImpl factory) {
-        var stats = factory.getMbean();
+        var stats = factory.getCacheStats();
 
         managedLedgerCounter.record(stats.getNumberOfManagedLedgers());
         cacheEvictionOperationCounter.record(stats.getNumberOfCacheEvictionsTotal());
@@ -186,8 +192,8 @@ public class OpenTelemetryManagedLedgerCacheStats implements AutoCloseable {
 
         cacheOperationCounter.record(stats.getCacheHitsTotal(), CacheOperationStatus.HIT.attributes);
         cacheOperationBytesCounter.record(stats.getCacheHitsBytesTotal(), CacheOperationStatus.HIT.attributes);
-        cacheOperationCounter.record(stats.getCacheMissesTotal(), CacheOperationStatus.HIT.attributes);
-        cacheOperationBytesCounter.record(stats.getCacheMissesBytesTotal(), CacheOperationStatus.HIT.attributes);
+        cacheOperationCounter.record(stats.getCacheMissesTotal(), CacheOperationStatus.MISS.attributes);
+        cacheOperationBytesCounter.record(stats.getCacheMissesBytesTotal(), CacheOperationStatus.MISS.attributes);
 
         var allocatorStats = new PooledByteBufAllocatorStats(RangeEntryCacheImpl.ALLOCATOR);
         cachePoolActiveAllocationCounter.record(allocatorStats.activeAllocationsSmall, PoolArenaType.SMALL.attributes);

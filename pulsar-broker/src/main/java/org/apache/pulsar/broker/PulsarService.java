@@ -112,6 +112,7 @@ import org.apache.pulsar.broker.service.schema.SchemaRegistryService;
 import org.apache.pulsar.broker.service.schema.SchemaStorageFactory;
 import org.apache.pulsar.broker.stats.MetricsGenerator;
 import org.apache.pulsar.broker.stats.OpenTelemetryConsumerStats;
+import org.apache.pulsar.broker.stats.OpenTelemetryManagedLedgerCacheStats;
 import org.apache.pulsar.broker.stats.OpenTelemetryTopicStats;
 import org.apache.pulsar.broker.stats.PulsarBrokerOpenTelemetry;
 import org.apache.pulsar.broker.stats.prometheus.PrometheusMetricsServlet;
@@ -258,6 +259,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
     private final PulsarBrokerOpenTelemetry openTelemetry;
     private OpenTelemetryTopicStats openTelemetryTopicStats;
     private OpenTelemetryConsumerStats openTelemetryConsumerStats;
+    private OpenTelemetryManagedLedgerCacheStats openTelemetryManagedLedgerCacheStats;
 
     private TransactionMetadataStoreService transactionMetadataStoreService;
     private TransactionBufferProvider transactionBufferProvider;
@@ -581,6 +583,11 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                 this.brokerService = null;
             }
 
+            if (openTelemetryManagedLedgerCacheStats != null) {
+                openTelemetryManagedLedgerCacheStats.close();
+                openTelemetryManagedLedgerCacheStats = null;
+            }
+
             if (this.managedLedgerClientFactory != null) {
                 try {
                     this.managedLedgerClientFactory.close();
@@ -859,6 +866,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
 
             managedLedgerClientFactory = ManagedLedgerStorage.create(config, localMetadataStore, bkClientFactory,
                     ioEventLoopGroup, openTelemetry.getOpenTelemetryService().getOpenTelemetry());
+            openTelemetryManagedLedgerCacheStats = new OpenTelemetryManagedLedgerCacheStats(this);
 
             this.brokerService = newBrokerService(this);
 
