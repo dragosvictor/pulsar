@@ -84,7 +84,7 @@ public class SplitManager implements StateChangeListener {
                         counter.update(Failure, Unknown);
                     } else {
                         log.info("Completed the bundle split event for bundle:{}", bundle);
-                        counter.update(decision);
+                        counter.update(decision.getLabel(), decision.getReason());
                     }
                 });
     }

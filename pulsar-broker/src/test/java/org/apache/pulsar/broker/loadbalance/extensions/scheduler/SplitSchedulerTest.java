@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.loadbalance.extensions.LoadManagerContext;
@@ -84,6 +85,7 @@ public class SplitSchedulerTest {
         strategy = mock(NamespaceBundleSplitStrategy.class);
 
         doReturn(config).when(pulsar).getConfiguration();
+        BrokerTestUtil.mockPulsarBrokerOpenTelemetry(pulsar);
         doReturn(true).when(namespaceBundleFactory).canSplitBundle(any());
         doReturn(CompletableFuture.completedFuture(null)).when(channel).publishSplitEventAsync(any());
 
@@ -105,19 +107,19 @@ public class SplitSchedulerTest {
     @Test(timeOut = 30 * 1000)
     public void testExecuteSuccess() {
         AtomicReference<List<Metrics>> reference = new AtomicReference();
-        SplitCounter counter = new SplitCounter();
+        SplitCounter counter = new SplitCounter(pulsar);
         SplitManager manager = mock(SplitManager.class);
         SplitScheduler scheduler = new SplitScheduler(pulsar, channel, manager, counter, reference, context, strategy);
         doAnswer((invocation)->{
             var decision = invocation.getArgument(2, SplitDecision.class);
-            counter.update(decision);
+            counter.update(decision.getLabel(), decision.getReason());
             return CompletableFuture.completedFuture(null);
         }).when(manager).waitAsync(any(), any(), any(), anyLong(), any());
         scheduler.execute();
 
-        var counterExpected = new SplitCounter();
-        counterExpected.update(decision1);
-        counterExpected.update(decision2);
+        var counterExpected = new SplitCounter(pulsar);
+        counterExpected.update(decision1.getLabel(), decision1.getReason());
+        counterExpected.update(decision2.getLabel(), decision2.getReason());
         verify(channel, times(1)).publishSplitEventAsync(eq(decision1.getSplit()));
         verify(channel, times(1)).publishSplitEventAsync(eq(decision2.getSplit()));
 
@@ -135,7 +137,7 @@ public class SplitSchedulerTest {
     @Test(timeOut = 30 * 1000)
     public void testExecuteFailure() {
         AtomicReference<List<Metrics>> reference = new AtomicReference();
-        SplitCounter counter = new SplitCounter();
+        SplitCounter counter = new SplitCounter(pulsar);
         SplitManager manager = new SplitManager(counter);
         SplitScheduler scheduler = new SplitScheduler(pulsar, channel, manager, counter, reference, context, strategy);
         doReturn(CompletableFuture.failedFuture(new RuntimeException())).when(channel).publishSplitEventAsync(any());
@@ -143,7 +145,7 @@ public class SplitSchedulerTest {
         scheduler.execute();
 
 
-        var counterExpected = new SplitCounter();
+        var counterExpected = new SplitCounter(pulsar);
         counterExpected.update(SplitDecision.Label.Failure, SplitDecision.Reason.Unknown);
         counterExpected.update(SplitDecision.Label.Failure, SplitDecision.Reason.Unknown);
         verify(channel, times(1)).publishSplitEventAsync(eq(decision1.getSplit()));

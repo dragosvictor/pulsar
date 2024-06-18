@@ -1362,7 +1362,7 @@ public class ExtensibleLoadManagerImplTest extends ExtensibleLoadManagerImplBase
         {
             var unloadMetrics = (AtomicReference<List<Metrics>>)
                     FieldUtils.readDeclaredField(primaryLoadManager, "unloadMetrics", true);
-            UnloadCounter unloadCounter = new UnloadCounter();
+            UnloadCounter unloadCounter = new UnloadCounter(pulsar);
             FieldUtils.writeDeclaredField(unloadCounter, "unloadBrokerCount", 2l, true);
             FieldUtils.writeDeclaredField(unloadCounter, "unloadBundleCount", 3l, true);
             FieldUtils.writeDeclaredField(unloadCounter, "loadAvg", 1.5, true);
@@ -1389,7 +1389,7 @@ public class ExtensibleLoadManagerImplTest extends ExtensibleLoadManagerImplBase
         {
             var splitMetrics = (AtomicReference<List<Metrics>>)
                     FieldUtils.readDeclaredField(primaryLoadManager, "splitMetrics", true);
-            SplitCounter splitCounter = new SplitCounter();
+            SplitCounter splitCounter = new SplitCounter(pulsar);
             FieldUtils.writeDeclaredField(splitCounter, "splitCount", 35l, true);
             FieldUtils.writeDeclaredField(splitCounter, "breakdownCounters", Map.of(
                     SplitDecision.Label.Success, Map.of(
@@ -1405,7 +1405,7 @@ public class ExtensibleLoadManagerImplTest extends ExtensibleLoadManagerImplBase
         }
 
         {
-            AssignCounter assignCounter = new AssignCounter();
+            AssignCounter assignCounter = new AssignCounter(this.pulsar);
             assignCounter.incrementSuccess();
             assignCounter.incrementFailure();
             assignCounter.incrementFailure();
