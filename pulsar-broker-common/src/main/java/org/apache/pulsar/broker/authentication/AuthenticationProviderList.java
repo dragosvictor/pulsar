@@ -28,7 +28,6 @@ import javax.net.ssl.SSLSession;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.authentication.metrics.AuthenticationMetrics;
 import org.apache.pulsar.common.api.AuthData;
 
@@ -36,7 +35,7 @@ import org.apache.pulsar.common.api.AuthData;
  * An authentication provider wraps a list of auth providers.
  */
 @Slf4j
-public class AuthenticationProviderList implements AuthenticationProvider {
+public class AuthenticationProviderList extends AuthenticationProviderBase {
 
     private interface AuthProcessor<T, W> {
 
@@ -214,9 +213,9 @@ public class AuthenticationProviderList implements AuthenticationProvider {
     }
 
     @Override
-    public void initialize(ServiceConfiguration config) throws IOException {
+    public void initialize(InitParameters parameters) throws IOException {
         for (AuthenticationProvider ap : providers) {
-            ap.initialize(config);
+            ap.initialize(parameters);
         }
     }
 

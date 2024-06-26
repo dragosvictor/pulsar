@@ -18,6 +18,10 @@
  */
 package org.apache.pulsar.broker.authentication.metrics;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.Meter;
 import io.prometheus.client.Counter;
 
 public class AuthenticationMetrics {
@@ -37,6 +41,7 @@ public class AuthenticationMetrics {
      * @param providerName The short class name of the provider
      * @param authMethod Authentication method name
      */
+    @Deprecated
     public static void authenticateSuccess(String providerName, String authMethod) {
         authSuccessMetrics.labels(providerName, authMethod).inc();
     }
@@ -62,8 +67,41 @@ public class AuthenticationMetrics {
      * @param authMethod Authentication method name.
      * @param errorCode Error code.
      */
+    @Deprecated
     public static void authenticateFailure(String providerName, String authMethod, Enum<?> errorCode) {
         authFailuresMetrics.labels(providerName, authMethod, errorCode.name()).inc();
+    }
+
+    public static final String AUTHENTICATION_COUNTER_METRIC_NAME = "pulsar.authentication.count";
+    private final LongCounter authenticationCounter;
+
+    private static final AttributeKey<String> PROVIDER_KEY = AttributeKey.stringKey("pulsar.authentication.provider");
+    private static final AttributeKey<String> AUTH_METHOD_KEY = AttributeKey.stringKey("pulsar.authentication.method");
+    private static final AttributeKey<String> AUTH_RESULT_KEY = AttributeKey.stringKey("pulsar.authentication.result");
+    private static final AttributeKey<String> ERROR_CODE_KEY = AttributeKey.stringKey("pulsar.authentication.error");
+
+    public AuthenticationMetrics(Meter meter) {
+        authenticationCounter = meter.counterBuilder(AUTHENTICATION_COUNTER_METRIC_NAME)
+                .setDescription("Number of authentication operations")
+                .setUnit("{operation}")
+                .build();
+    }
+
+    public void recordSuccess(String providerName, String authMethod) {
+        authenticateSuccess(providerName, authMethod);
+        var attributes = Attributes.of(PROVIDER_KEY, providerName,
+                AUTH_METHOD_KEY, authMethod,
+                AUTH_RESULT_KEY, "success");
+        authenticationCounter.add(1, attributes);
+    }
+
+    public void recordFailure(String providerName, String authMethod, Enum<?> errorCode) {
+        authenticateFailure(providerName, authMethod, errorCode);
+        var attributes = Attributes.of(PROVIDER_KEY, providerName,
+                AUTH_METHOD_KEY, authMethod,
+                AUTH_RESULT_KEY, "failure",
+                ERROR_CODE_KEY, errorCode.name().toLowerCase());
+        authenticationCounter.add(1, attributes);
     }
 
 }
