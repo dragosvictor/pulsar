@@ -91,8 +91,8 @@ public class OpenTelemetryService implements Closeable {
                         resourceBuilder.put(ServiceAttributes.SERVICE_NAME, serviceName);
                     }
                     if (StringUtils.isNotBlank(serviceVersion)
-                            && resource.getAttribute(ResourceAttributes.SERVICE_VERSION) == null) {
-                        resourceBuilder.put(ResourceAttributes.SERVICE_VERSION, serviceVersion);
+                            && resource.getAttribute(ServiceAttributes.SERVICE_VERSION) == null) {
+                        resourceBuilder.put(ServiceAttributes.SERVICE_VERSION, serviceVersion);
                     }
                     return resource.merge(resourceBuilder.build());
                 });

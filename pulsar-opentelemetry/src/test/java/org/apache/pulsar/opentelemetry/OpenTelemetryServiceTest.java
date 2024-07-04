@@ -111,8 +111,8 @@ public class OpenTelemetryServiceTest {
             .allSatisfy(metric -> assertThat(metric)
                 .hasResourceSatisfying(resource -> resource
                     .hasAttribute(OpenTelemetryAttributes.PULSAR_CLUSTER, "testServiceNameAndVersion")
-                    .hasAttribute(ResourceAttributes.SERVICE_VERSION, "1.0.0")
                     .hasAttribute(ServiceAttributes.SERVICE_NAME, "openTelemetryServiceTestService")
+                    .hasAttribute(ServiceAttributes.SERVICE_VERSION, "1.0.0")
                     .hasAttribute(satisfies(ResourceAttributes.HOST_NAME, AbstractCharSequenceAssert::isNotBlank))));
     }
 
