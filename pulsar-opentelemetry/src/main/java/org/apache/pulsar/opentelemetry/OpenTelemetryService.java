@@ -27,7 +27,7 @@ import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk;
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdkBuilder;
 import io.opentelemetry.sdk.common.export.MemoryMode;
 import io.opentelemetry.sdk.resources.Resource;
-import io.opentelemetry.semconv.ResourceAttributes;
+import io.opentelemetry.semconv.ServiceAttributes;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.Objects;
@@ -86,9 +86,9 @@ public class OpenTelemetryService implements Closeable {
                         resourceBuilder.put(OpenTelemetryAttributes.PULSAR_CLUSTER, clusterName);
                     }
                     if (StringUtils.isNotBlank(serviceName)
-                            && Objects.equals(Resource.getDefault().getAttribute(ResourceAttributes.SERVICE_NAME),
-                                              resource.getAttribute(ResourceAttributes.SERVICE_NAME))) {
-                        resourceBuilder.put(ResourceAttributes.SERVICE_NAME, serviceName);
+                            && Objects.equals(Resource.getDefault().getAttribute(ServiceAttributes.SERVICE_NAME),
+                                              resource.getAttribute(ServiceAttributes.SERVICE_NAME))) {
+                        resourceBuilder.put(ServiceAttributes.SERVICE_NAME, serviceName);
                     }
                     if (StringUtils.isNotBlank(serviceVersion)
                             && resource.getAttribute(ResourceAttributes.SERVICE_VERSION) == null) {
