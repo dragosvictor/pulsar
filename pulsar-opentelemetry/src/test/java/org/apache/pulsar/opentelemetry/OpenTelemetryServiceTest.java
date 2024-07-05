@@ -30,6 +30,7 @@ import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.export.MetricReader;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import io.opentelemetry.semconv.ResourceAttributes;
+import io.opentelemetry.semconv.ServiceAttributes;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -110,8 +111,8 @@ public class OpenTelemetryServiceTest {
             .allSatisfy(metric -> assertThat(metric)
                 .hasResourceSatisfying(resource -> resource
                     .hasAttribute(OpenTelemetryAttributes.PULSAR_CLUSTER, "testServiceNameAndVersion")
-                    .hasAttribute(ResourceAttributes.SERVICE_NAME, "openTelemetryServiceTestService")
-                    .hasAttribute(ResourceAttributes.SERVICE_VERSION, "1.0.0")
+                    .hasAttribute(ServiceAttributes.SERVICE_NAME, "openTelemetryServiceTestService")
+                    .hasAttribute(ServiceAttributes.SERVICE_VERSION, "1.0.0")
                     .hasAttribute(satisfies(ResourceAttributes.HOST_NAME, AbstractCharSequenceAssert::isNotBlank))));
     }
 
