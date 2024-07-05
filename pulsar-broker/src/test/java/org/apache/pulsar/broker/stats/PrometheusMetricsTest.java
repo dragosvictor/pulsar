@@ -21,6 +21,9 @@ package org.apache.pulsar.broker.stats;
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.pulsar.broker.stats.prometheus.PrometheusMetricsClient.Metric;
 import static org.apache.pulsar.broker.stats.prometheus.PrometheusMetricsClient.parseMetrics;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
@@ -31,6 +34,8 @@ import static org.testng.Assert.fail;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Multimap;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.prometheus.client.Collector;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -876,7 +881,9 @@ public class PrometheusMetricsTest extends BrokerTestBase {
             var serviceUnitStateData = mock(ServiceUnitStateData.class);
             when(serviceUnitStateData.sourceBroker()).thenReturn(brokerLookupAddress);
             when(serviceUnitStateData.dstBroker()).thenReturn(brokerLookupAddress);
-            latencyMetric.beginMeasurement(serviceUnit, brokerLookupAddress, serviceUnitStateData);
+            var otelLatencyHistogramMock = mock(DoubleHistogram.class);
+            doNothing().when(otelLatencyHistogramMock).record(anyDouble(), any(Attributes.class));
+            latencyMetric.beginMeasurement(otelLatencyHistogramMock, serviceUnit, brokerLookupAddress, serviceUnitStateData);
             latencyMetric.endMeasurement(serviceUnit);
         }
 
