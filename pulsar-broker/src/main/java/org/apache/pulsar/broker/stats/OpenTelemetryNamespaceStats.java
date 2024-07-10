@@ -32,13 +32,14 @@ public class OpenTelemetryNamespaceStats {
 
     private final Map<NamespaceName, StatsObject> statsMap;
 
+    public static final String PUBLISH_DURATION_METRIC_NAME = "pulsar.namespace.publish.duration";
     private final DoubleHistogram publishLatency;
 
     public OpenTelemetryNamespaceStats(PulsarService pulsarService) {
         statsMap = new ConcurrentHashMap<>(32);
 
         var meter = pulsarService.getOpenTelemetry().getMeter();
-        publishLatency = meter.histogramBuilder("pulsar.namespace.publish.duration")
+        publishLatency = meter.histogramBuilder(PUBLISH_DURATION_METRIC_NAME)
                 .setDescription("Publish duration")
                 .setUnit("s")
                 .build();
