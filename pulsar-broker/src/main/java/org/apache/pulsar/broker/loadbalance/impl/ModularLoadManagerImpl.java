@@ -21,6 +21,7 @@ package org.apache.pulsar.broker.loadbalance.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.ConcurrentModificationException;
@@ -70,6 +71,7 @@ import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.ServiceUnitId;
 import org.apache.pulsar.common.policies.data.ResourceQuota;
 import org.apache.pulsar.common.stats.Metrics;
+import org.apache.pulsar.common.stats.MetricsUtil;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.Reflections;
 import org.apache.pulsar.common.util.collections.ConcurrentOpenHashMap;
@@ -80,6 +82,7 @@ import org.apache.pulsar.metadata.api.Notification;
 import org.apache.pulsar.metadata.api.coordination.LockManager;
 import org.apache.pulsar.metadata.api.coordination.ResourceLock;
 import org.apache.pulsar.metadata.api.extended.SessionEvent;
+import org.apache.pulsar.opentelemetry.annotations.PulsarDeprecatedMetric;
 import org.apache.pulsar.policies.data.loadbalancer.BrokerData;
 import org.apache.pulsar.policies.data.loadbalancer.BundleData;
 import org.apache.pulsar.policies.data.loadbalancer.LocalBrokerData;
@@ -237,6 +240,11 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
     public void initialize(final PulsarService pulsar) {
         this.pulsar = pulsar;
         this.pulsarResources = pulsar.getPulsarResources();
+        this.selectBrokerForAssignmentDuration = pulsar.getOpenTelemetry().getMeter()
+                .histogramBuilder(SELECT_BROKER_FOR_ASSIGNMENT_DURATION)
+                .setDescription("Select broker for assignment duration")
+                .setUnit("s")
+                .build();
         brokersData = pulsar.getCoordinationService().getLockManager(LocalBrokerData.class);
         pulsar.getLocalMetadataStore().registerListener(this::handleDataNotification);
         pulsar.getLocalMetadataStore().registerSessionListener(this::handleMetadataSessionEvent);
@@ -809,6 +817,11 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
         this.bundleSplitMetrics.set(metrics);
     }
 
+    public static final String SELECT_BROKER_FOR_ASSIGNMENT_DURATION =
+            "pulsar.broker.load_balance.broker_select.duration";
+    private DoubleHistogram selectBrokerForAssignmentDuration;
+
+    @PulsarDeprecatedMetric(newMetricName = SELECT_BROKER_FOR_ASSIGNMENT_DURATION)
     private static final Summary selectBrokerForAssignment = Summary.build(
             "pulsar_broker_load_manager_bundle_assigment", "-")
             .quantile(0.50)
@@ -847,7 +860,9 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
                 return broker;
             }
         } finally {
-            selectBrokerForAssignment.observe(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
+            var durationNanos = System.nanoTime() - startTime;
+            selectBrokerForAssignment.observe(durationNanos, TimeUnit.NANOSECONDS);
+            selectBrokerForAssignmentDuration.record(MetricsUtil.convertToSeconds(durationNanos, TimeUnit.NANOSECONDS));
         }
     }
 
