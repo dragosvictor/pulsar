@@ -18,6 +18,7 @@
  */
 package org.apache.pulsar.broker.service.persistent;
 
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.prometheus.client.Summary;
 import java.time.Clock;
 import java.util.List;
@@ -33,6 +34,8 @@ import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.common.api.proto.MarkersMessageIdData;
 import org.apache.pulsar.common.api.proto.ReplicatedSubscriptionsSnapshotResponse;
 import org.apache.pulsar.common.protocol.Markers;
+import org.apache.pulsar.common.stats.MetricsUtil;
+import org.apache.pulsar.opentelemetry.annotations.PulsarDeprecatedMetric;
 
 @Slf4j
 public class ReplicatedSubscriptionsSnapshotBuilder {
@@ -52,11 +55,22 @@ public class ReplicatedSubscriptionsSnapshotBuilder {
 
     private final Clock clock;
 
+    public static final String REPLICATION_SUBSCRIPTION_SNAPSHOT_DURATION_METRIC_NAME =
+            "pulsar.broker.replication.subscription.snapshot.duration";
+    private final DoubleHistogram snapshotDuration;
+
+    @PulsarDeprecatedMetric(newMetricName = REPLICATION_SUBSCRIPTION_SNAPSHOT_DURATION_METRIC_NAME)
+    @Deprecated
     private static final Summary snapshotMetric = Summary.build("pulsar_replicated_subscriptions_snapshot_ms",
             "Time taken to create a consistent snapshot across clusters").register();
 
     public ReplicatedSubscriptionsSnapshotBuilder(ReplicatedSubscriptionsController controller,
             List<String> remoteClusters, ServiceConfiguration conf, Clock clock) {
+        snapshotDuration = controller.topic().getBrokerService().getPulsar().getOpenTelemetry().getMeter()
+                .histogramBuilder(REPLICATION_SUBSCRIPTION_SNAPSHOT_DURATION_METRIC_NAME)
+                .setDescription("Time taken to create a consistent snapshot across clusters")
+                .setUnit("s")
+                .build();
         this.snapshotId = UUID.randomUUID().toString();
         this.controller = controller;
         this.remoteClusters = remoteClusters;
@@ -123,8 +137,9 @@ public class ReplicatedSubscriptionsSnapshotBuilder {
                         p.getLedgerId(), p.getEntryId(), responses));
         controller.snapshotCompleted(snapshotId);
 
-        double latencyMillis = clock.millis() - startTimeMillis;
+        var latencyMillis = clock.millis() - startTimeMillis;
         snapshotMetric.observe(latencyMillis);
+        snapshotDuration.record(MetricsUtil.convertToSeconds(latencyMillis, TimeUnit.MILLISECONDS));
     }
 
     boolean isTimedOut() {
