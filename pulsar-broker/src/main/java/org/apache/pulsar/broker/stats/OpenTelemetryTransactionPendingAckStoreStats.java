@@ -18,20 +18,27 @@
  */
 package org.apache.pulsar.broker.stats;
 
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.ObservableLongCounter;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
+import org.apache.pulsar.common.stats.MetricsUtil;
 
 public class OpenTelemetryTransactionPendingAckStoreStats implements AutoCloseable {
 
     // Replaces ['pulsar_txn_tp_committed_count_total', 'pulsar_txn_tp_aborted_count_total']
     public static final String ACK_COUNTER = "pulsar.broker.transaction.pending.ack.store.transaction.count";
     private final ObservableLongCounter ackCounter;
+
+    public static final String OPERATION_LATENCY = "pulsar.broker.transaction.pending.ack.store.operation.duration";
+    private final DoubleHistogram operationLatency;
 
     public OpenTelemetryTransactionPendingAckStoreStats(PulsarService pulsar) {
         var meter = pulsar.getOpenTelemetry().getMeter();
@@ -51,11 +58,20 @@ public class OpenTelemetryTransactionPendingAckStoreStats implements AutoCloseab
                         .filter(Topic::isPersistent)
                         .map(Topic::getSubscriptions)
                         .forEach(subs -> subs.forEach((__, sub) -> recordMetricsForSubscription(measurement, sub))));
+
+        operationLatency = meter.histogramBuilder(OPERATION_LATENCY)
+                .setUnit("s")
+                .setDescription("Latency of pending ack store operations")
+                .build();
     }
 
     @Override
     public void close() {
         ackCounter.close();
+    }
+
+    public void recordOperationLatency(long durationNs, Attributes attributes) {
+        operationLatency.record(MetricsUtil.convertToSeconds(durationNs, TimeUnit.NANOSECONDS), attributes);
     }
 
     private void recordMetricsForSubscription(ObservableLongMeasurement measurement, Subscription subscription) {

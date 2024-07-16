@@ -21,7 +21,9 @@ package org.apache.pulsar.broker.stats;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import java.util.concurrent.TimeUnit;
+import lombok.Getter;
 import org.apache.pulsar.broker.PulsarService;
+import org.apache.pulsar.broker.transaction.pendingack.PendingAckHandleAttributes;
 import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.stats.MetricsUtil;
 import org.apache.pulsar.opentelemetry.OpenTelemetryAttributes;
@@ -40,6 +42,9 @@ public class OpenTelemetryNamespaceStats {
     private final Attributes transactionBufferClientAbortSucceededAttributes;
     private final Attributes transactionBufferClientCommitFailedAttributes;
     private final Attributes transactionBufferClientCommitSucceededAttributes;
+
+    @Getter
+    private final PendingAckHandleAttributes pendingAckHandleAttributes;
 
     public OpenTelemetryNamespaceStats(PulsarService pulsarService, NamespaceName namespace) {
         var meter = pulsarService.getOpenTelemetry().getMeter();
@@ -74,6 +79,8 @@ public class OpenTelemetryNamespaceStats {
                 .setDescription("The duration of a transaction buffer client operation.")
                 .setUnit("s")
                 .build();
+
+        pendingAckHandleAttributes = new PendingAckHandleAttributes(namespace);
 
         publishLatency = meter.histogramBuilder(PUBLISH_DURATION_METRIC_NAME)
                 .setDescription("Publish duration")
