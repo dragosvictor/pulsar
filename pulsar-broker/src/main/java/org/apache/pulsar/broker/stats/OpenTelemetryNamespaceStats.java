@@ -31,15 +31,50 @@ public class OpenTelemetryNamespaceStats {
     public static final String PUBLISH_DURATION_METRIC_NAME = "pulsar.namespace.publish.duration";
     private final DoubleHistogram publishLatency;
 
-    private final Attributes attributes;
+    public static final String TRANSACTION_BUFFER_CLIENT_OPERATION_DURATION_METRIC_NAME =
+            "pulsar.broker.transaction.buffer.client.operation.duration";
+    private final DoubleHistogram txBufferClientOperationLatency;
+
+    private final Attributes commonAttributes;
+    private final Attributes transactionBufferClientAbortFailedAttributes;
+    private final Attributes transactionBufferClientAbortSucceededAttributes;
+    private final Attributes transactionBufferClientCommitFailedAttributes;
+    private final Attributes transactionBufferClientCommitSucceededAttributes;
 
     public OpenTelemetryNamespaceStats(PulsarService pulsarService, NamespaceName namespace) {
-        attributes = Attributes.of(
+        var meter = pulsarService.getOpenTelemetry().getMeter();
+
+        commonAttributes = Attributes.of(
                 OpenTelemetryAttributes.PULSAR_NAMESPACE, namespace.getLocalName(),
                 OpenTelemetryAttributes.PULSAR_TENANT, namespace.getTenant()
         );
 
-        var meter = pulsarService.getOpenTelemetry().getMeter();
+        transactionBufferClientCommitSucceededAttributes = Attributes.builder()
+                .putAll(commonAttributes)
+                .putAll(OpenTelemetryAttributes.TransactionStatus.COMMITTED.attributes)
+                .putAll(OpenTelemetryAttributes.TransactionBufferClientOperationStatus.SUCCESS.attributes)
+                .build();
+        transactionBufferClientCommitFailedAttributes = Attributes.builder()
+                .putAll(commonAttributes)
+                .putAll(OpenTelemetryAttributes.TransactionStatus.COMMITTED.attributes)
+                .putAll(OpenTelemetryAttributes.TransactionBufferClientOperationStatus.FAILURE.attributes)
+                .build();
+        transactionBufferClientAbortSucceededAttributes = Attributes.builder()
+                .putAll(commonAttributes)
+                .putAll(OpenTelemetryAttributes.TransactionStatus.ABORTED.attributes)
+                .putAll(OpenTelemetryAttributes.TransactionBufferClientOperationStatus.SUCCESS.attributes)
+                .build();
+        transactionBufferClientAbortFailedAttributes = Attributes.builder()
+                .putAll(commonAttributes)
+                .putAll(OpenTelemetryAttributes.TransactionStatus.ABORTED.attributes)
+                .putAll(OpenTelemetryAttributes.TransactionBufferClientOperationStatus.FAILURE.attributes)
+                .build();
+        txBufferClientOperationLatency = meter
+                .histogramBuilder(TRANSACTION_BUFFER_CLIENT_OPERATION_DURATION_METRIC_NAME)
+                .setDescription("The duration of a transaction buffer client operation.")
+                .setUnit("s")
+                .build();
+
         publishLatency = meter.histogramBuilder(PUBLISH_DURATION_METRIC_NAME)
                 .setDescription("Publish duration")
                 .setUnit("s")
@@ -47,6 +82,26 @@ public class OpenTelemetryNamespaceStats {
     }
 
     public void recordAddLatency(long latency, TimeUnit timeUnit) {
-        publishLatency.record(MetricsUtil.convertToSeconds(latency, timeUnit), attributes);
+        publishLatency.record(MetricsUtil.convertToSeconds(latency, timeUnit), commonAttributes);
+    }
+
+    public void recordTransactionBufferClientCommitSucceededLatency(long latencyNs) {
+        txBufferClientOperationLatency.record(MetricsUtil.convertToSeconds(latencyNs, TimeUnit.NANOSECONDS),
+                transactionBufferClientCommitSucceededAttributes);
+    }
+
+    public void recordTransactionBufferClientCommitFailedLatency(long latencyNs) {
+        txBufferClientOperationLatency.record(MetricsUtil.convertToSeconds(latencyNs, TimeUnit.NANOSECONDS),
+                transactionBufferClientCommitFailedAttributes);
+    }
+
+    public void recordTransactionBufferClientAbortSucceededLatency(long latencyNs) {
+        txBufferClientOperationLatency.record(MetricsUtil.convertToSeconds(latencyNs, TimeUnit.NANOSECONDS),
+                transactionBufferClientAbortSucceededAttributes);
+    }
+
+    public void recordTransactionBufferClientAbortFailedLatency(long latencyNs) {
+        txBufferClientOperationLatency.record(MetricsUtil.convertToSeconds(latencyNs, TimeUnit.NANOSECONDS),
+                transactionBufferClientAbortFailedAttributes);
     }
 }

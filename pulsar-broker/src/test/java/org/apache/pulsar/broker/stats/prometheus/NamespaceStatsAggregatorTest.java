@@ -33,6 +33,7 @@ import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
 import org.apache.pulsar.broker.service.persistent.PersistentTopic;
 import org.apache.pulsar.broker.service.persistent.PersistentTopicMetrics;
+import org.apache.pulsar.broker.stats.OpenTelemetryNamespaceStats;
 import org.apache.pulsar.common.policies.data.BacklogQuota;
 import org.apache.pulsar.common.policies.data.stats.ConsumerStatsImpl;
 import org.apache.pulsar.common.policies.data.stats.SubscriptionStatsImpl;
@@ -103,7 +104,8 @@ public class NamespaceStatsAggregatorTest {
         when(topic.getReplicators()).thenReturn(ConcurrentOpenHashMap.<String,Replicator>newBuilder().build());
         when(topic.getManagedLedger()).thenReturn(ml);
         when(topic.getBacklogQuota(Mockito.any())).thenReturn(Mockito.mock(BacklogQuota.class));
-        PersistentTopicMetrics persistentTopicMetrics = new PersistentTopicMetrics();
+        PersistentTopicMetrics persistentTopicMetrics = new PersistentTopicMetrics(Mockito.mock(
+                OpenTelemetryNamespaceStats.class));
         when(topic.getPersistentTopicMetrics()).thenReturn(persistentTopicMetrics);
         topicsMap.put("my-topic", topic);
         PrometheusMetricStreams metricStreams = Mockito.spy(new PrometheusMetricStreams());

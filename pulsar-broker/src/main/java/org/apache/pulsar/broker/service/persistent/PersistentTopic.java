@@ -290,7 +290,8 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
     private volatile CloseFutures closeFutures;
 
     @Getter
-    private final PersistentTopicMetrics persistentTopicMetrics = new PersistentTopicMetrics();
+    private final PersistentTopicMetrics persistentTopicMetrics =
+            new PersistentTopicMetrics(getOpenTelemetryNamespaceStats());
 
     private volatile PersistentTopicAttributes persistentTopicAttributes = null;
     private static final AtomicReferenceFieldUpdater<PersistentTopic, PersistentTopicAttributes>

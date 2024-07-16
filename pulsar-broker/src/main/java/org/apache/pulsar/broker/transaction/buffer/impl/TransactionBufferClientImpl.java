@@ -63,10 +63,11 @@ public class TransactionBufferClientImpl implements TransactionBufferClient {
         long start = System.nanoTime();
         return tbHandler.endTxnOnTopic(topic, txnIdMostBits, txnIdLeastBits, TxnAction.COMMIT, lowWaterMark)
                 .whenComplete((__, t) -> {
+                    var durationNs = System.nanoTime() - start;
                     if (null != t) {
-                        this.stats.recordCommitFailed(topic);
+                        this.stats.recordCommitFailed(topic, durationNs);
                     } else {
-                        this.stats.recordCommitLatency(topic, System.nanoTime() - start);
+                        this.stats.recordCommitLatency(topic, durationNs);
                     }
                 });
     }
@@ -77,10 +78,11 @@ public class TransactionBufferClientImpl implements TransactionBufferClient {
         long start = System.nanoTime();
         return tbHandler.endTxnOnTopic(topic, txnIdMostBits, txnIdLeastBits, TxnAction.ABORT, lowWaterMark)
                 .whenComplete((__, t) -> {
+                    var durationNs = System.nanoTime() - start;
                     if (null != t) {
-                        this.stats.recordAbortFailed(topic);
+                        this.stats.recordAbortFailed(topic, durationNs);
                     } else {
-                        this.stats.recordAbortLatency(topic, System.nanoTime() - start);
+                        this.stats.recordAbortLatency(topic, durationNs);
                     }
                 });
     }
@@ -92,10 +94,11 @@ public class TransactionBufferClientImpl implements TransactionBufferClient {
         return tbHandler.endTxnOnSubscription(topic, subscription, txnIdMostBits, txnIdLeastBits,
                 TxnAction.COMMIT, lowWaterMark)
                 .whenComplete((__, t) -> {
+                    var durationNs = System.nanoTime() - start;
                     if (null != t) {
-                        this.stats.recordCommitFailed(topic);
+                        this.stats.recordCommitFailed(topic, durationNs);
                     } else {
-                        this.stats.recordCommitLatency(topic, System.nanoTime() - start);
+                        this.stats.recordCommitLatency(topic, durationNs);
                     }
                 });
     }
@@ -107,11 +110,11 @@ public class TransactionBufferClientImpl implements TransactionBufferClient {
         return tbHandler.endTxnOnSubscription(topic, subscription, txnIdMostBits, txnIdLeastBits,
                 TxnAction.ABORT, lowWaterMark)
                 .whenComplete((__, t) -> {
+                    var durationNs = System.nanoTime() - start;
                     if (null != t) {
-                        this.stats.recordAbortFailed(topic);
-
+                        this.stats.recordAbortFailed(topic, durationNs);
                     } else {
-                        this.stats.recordAbortLatency(topic, System.nanoTime() - start);
+                        this.stats.recordAbortLatency(topic, durationNs);
                     }
                 });
     }

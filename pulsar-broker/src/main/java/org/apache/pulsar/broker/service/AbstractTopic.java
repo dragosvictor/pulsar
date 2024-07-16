@@ -169,6 +169,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
 
     protected Set<String> additionalSystemCursorNames = new TreeSet<>();
 
+    @Getter
     private final OpenTelemetryNamespaceStats openTelemetryNamespaceStats;
 
     public AbstractTopic(String topic, BrokerService brokerService) {
