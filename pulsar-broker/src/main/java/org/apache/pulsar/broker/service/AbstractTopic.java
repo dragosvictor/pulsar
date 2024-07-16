@@ -169,7 +169,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
 
     protected Set<String> additionalSystemCursorNames = new TreeSet<>();
 
-    private final OpenTelemetryNamespaceStats.StatsObject openTelemetryNamespaceStats;
+    private final OpenTelemetryNamespaceStats openTelemetryNamespaceStats;
 
     public AbstractTopic(String topic, BrokerService brokerService) {
         this.topic = topic;
@@ -189,7 +189,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
 
         additionalSystemCursorNames = brokerService.pulsar().getConfiguration().getAdditionalSystemCursorNames();
         var namespaceName = TopicName.get(topic).getNamespaceObject();
-        openTelemetryNamespaceStats = brokerService.getPulsar().getOpenTelemetryNamespaceStats().getStats(namespaceName);
+        openTelemetryNamespaceStats = brokerService.getPulsar().getOpenTelemetryNamespaceStats(namespaceName);
     }
 
     public SubscribeRate getSubscribeRate() {

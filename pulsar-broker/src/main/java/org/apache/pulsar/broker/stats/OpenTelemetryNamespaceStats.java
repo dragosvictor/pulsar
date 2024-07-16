@@ -20,8 +20,6 @@ package org.apache.pulsar.broker.stats;
 
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.common.naming.NamespaceName;
@@ -30,13 +28,16 @@ import org.apache.pulsar.opentelemetry.OpenTelemetryAttributes;
 
 public class OpenTelemetryNamespaceStats {
 
-    private final Map<NamespaceName, StatsObject> statsMap;
-
     public static final String PUBLISH_DURATION_METRIC_NAME = "pulsar.namespace.publish.duration";
     private final DoubleHistogram publishLatency;
 
-    public OpenTelemetryNamespaceStats(PulsarService pulsarService) {
-        statsMap = new ConcurrentHashMap<>(32);
+    private final Attributes attributes;
+
+    public OpenTelemetryNamespaceStats(PulsarService pulsarService, NamespaceName namespace) {
+        attributes = Attributes.of(
+                OpenTelemetryAttributes.PULSAR_NAMESPACE, namespace.getLocalName(),
+                OpenTelemetryAttributes.PULSAR_TENANT, namespace.getTenant()
+        );
 
         var meter = pulsarService.getOpenTelemetry().getMeter();
         publishLatency = meter.histogramBuilder(PUBLISH_DURATION_METRIC_NAME)
@@ -45,22 +46,7 @@ public class OpenTelemetryNamespaceStats {
                 .build();
     }
 
-    public StatsObject getStats(NamespaceName namespace) {
-        return statsMap.computeIfAbsent(namespace, StatsObject::new);
-    }
-
-    public class StatsObject {
-        private final Attributes attributes;
-
-        public StatsObject(NamespaceName namespace) {
-            attributes = Attributes.of(
-                    OpenTelemetryAttributes.PULSAR_NAMESPACE, namespace.getLocalName(),
-                    OpenTelemetryAttributes.PULSAR_TENANT, namespace.getTenant()
-            );
-        }
-
-        public void recordAddLatency(long latency, TimeUnit timeUnit) {
-            publishLatency.record(MetricsUtil.convertToSeconds(latency, timeUnit), attributes);
-        }
+    public void recordAddLatency(long latency, TimeUnit timeUnit) {
+        publishLatency.record(MetricsUtil.convertToSeconds(latency, timeUnit), attributes);
     }
 }

@@ -262,7 +262,8 @@ public class PulsarService implements AutoCloseable, ShutdownService {
 
     private MetricsGenerator metricsGenerator;
     private final PulsarBrokerOpenTelemetry openTelemetry;
-    private OpenTelemetryNamespaceStats openTelemetryNamespaceStats;
+    @Getter(AccessLevel.NONE)
+    private Map<NamespaceName, OpenTelemetryNamespaceStats> openTelemetryNamespaceStatsMap;
     private OpenTelemetryTopicStats openTelemetryTopicStats;
     private OpenTelemetryConsumerStats openTelemetryConsumerStats;
     private OpenTelemetryProducerStats openTelemetryProducerStats;
@@ -714,7 +715,6 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                 openTelemetryTopicStats.close();
                 openTelemetryTopicStats = null;
             }
-            openTelemetryNamespaceStats = null;
 
             asyncCloseFutures.add(EventLoopUtil.shutdownGracefully(ioEventLoopGroup));
 
@@ -856,7 +856,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                         config.getDefaultRetentionTimeInMinutes() * 60));
             }
 
-            openTelemetryNamespaceStats = new OpenTelemetryNamespaceStats(this);
+            openTelemetryNamespaceStatsMap = new ConcurrentHashMap<>();
             openTelemetryTopicStats = new OpenTelemetryTopicStats(this);
             openTelemetryConsumerStats = new OpenTelemetryConsumerStats(this);
             openTelemetryProducerStats = new OpenTelemetryProducerStats(this);
@@ -2104,5 +2104,10 @@ public class PulsarService implements AutoCloseable, ShutdownService {
         } finally {
             mutex.unlock();
         }
+    }
+
+    public OpenTelemetryNamespaceStats getOpenTelemetryNamespaceStats(NamespaceName namespace) {
+        return openTelemetryNamespaceStatsMap.computeIfAbsent(namespace,
+                namespaceName -> new OpenTelemetryNamespaceStats(PulsarService.this, namespaceName));
     }
 }
