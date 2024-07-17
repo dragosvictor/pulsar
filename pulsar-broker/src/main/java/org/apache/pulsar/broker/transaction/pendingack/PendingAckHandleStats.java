@@ -22,7 +22,7 @@ public interface PendingAckHandleStats {
 
     void recordCommitTxn(boolean success, long nanos);
 
-    void recordAbortTxn(boolean success);
+    void recordAbortTxn(boolean success, long nanos);
 
     void close();
 

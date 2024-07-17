@@ -108,11 +108,16 @@ public class PendingAckHandleStatsImpl implements PendingAckHandleStats {
     }
 
     @Override
-    public void recordAbortTxn(boolean success) {
-        abortTxnCounter.labels(success ? labelSucceed : labelFailed).inc();
-        var counter = success ? abortTxnSucceedCounter : abortTxnFailedCounter;
-        counter.increment();
-        openTelemetryStats.recordOperationLatency(1.0, success ? namespaceAttributes.getAbortSuccessAttributes() : namespaceAttributes.getAbortFailureAttributes());
+    public void recordAbortTxn(boolean success, long nanos) {
+        if (success) {
+            abortTxnCounter.labels(labelSucceed).inc();
+            abortTxnSucceedCounter.increment();
+            openTelemetryStats.recordOperationLatency(nanos, namespaceAttributes.getAbortSuccessAttributes());
+        } else {
+            abortTxnCounter.labels(labelFailed).inc();
+            abortTxnFailedCounter.increment();
+            openTelemetryStats.recordOperationLatency(nanos, namespaceAttributes.getAbortFailureAttributes());
+        }
     }
 
     @Override
