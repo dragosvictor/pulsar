@@ -157,8 +157,8 @@ public class PendingAckHandleImpl extends PendingAckHandleState implements Pendi
         var pulsar = persistentSubscription.getTopic().getBrokerService().getPulsar();
         internalPinnedExecutor = pulsar.getTransactionExecutorProvider().getExecutor(this);
 
-        this.handleStats = PendingAckHandleStats.create(
-                topicName, subName, pulsar.getConfig().isExposeTopicLevelMetricsInPrometheus());
+        this.handleStats = new PendingAckHandleStatsImpl(persistentSubscription,
+                pulsar.getConfig().isExposeTopicLevelMetricsInPrometheus());
 
         this.pendingAckStoreProvider = pulsar.getTransactionPendingAckStoreProvider();
         transactionOpTimer = pulsar.getTransactionTimer();

@@ -18,8 +18,6 @@
  */
 package org.apache.pulsar.broker.transaction.pendingack;
 
-import org.apache.pulsar.broker.transaction.pendingack.impl.PendingAckHandleStatsImpl;
-
 public interface PendingAckHandleStats {
 
     void recordCommitTxn(boolean success, long nanos);
@@ -34,8 +32,4 @@ public interface PendingAckHandleStats {
     long getAbortFailedCount();
 
     PendingAckHandleAttributes getAttributes();
-
-    static PendingAckHandleStats create(String topic, String subName, boolean exposeTopicLevelMetrics) {
-        return new PendingAckHandleStatsImpl(topic, subName, exposeTopicLevelMetrics);
-    }
 }
