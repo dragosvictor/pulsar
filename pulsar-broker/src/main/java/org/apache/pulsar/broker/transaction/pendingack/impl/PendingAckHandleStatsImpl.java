@@ -30,12 +30,23 @@ import org.apache.pulsar.broker.stats.OpenTelemetryTransactionPendingAckStoreSta
 import org.apache.pulsar.broker.transaction.pendingack.PendingAckHandleAttributes;
 import org.apache.pulsar.broker.transaction.pendingack.PendingAckHandleStats;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.opentelemetry.annotations.PulsarDeprecatedMetric;
 
 public class PendingAckHandleStatsImpl implements PendingAckHandleStats {
     private static final AtomicBoolean INITIALIZED = new AtomicBoolean(false);
+
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTransactionPendingAckStoreStats.ACK_COUNTER)
+    @Deprecated
     private static Counter commitTxnCounter;
+
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTransactionPendingAckStoreStats.ACK_COUNTER)
+    @Deprecated
     private static Counter abortTxnCounter;
+
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTransactionPendingAckStoreStats.OPERATION_LATENCY)
+    @Deprecated
     private static Summary commitTxnLatency;
+
     private static boolean exposeTopicLevelMetrics0;
 
     private final String[] labelSucceed;
