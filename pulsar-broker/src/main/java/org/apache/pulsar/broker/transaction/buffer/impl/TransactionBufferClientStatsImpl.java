@@ -42,19 +42,26 @@ public final class TransactionBufferClientStatsImpl implements TransactionBuffer
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
+    @Deprecated
     private final Counter abortFailed;
-    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
-    private final Counter commitFailed;
-    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
-    private final Summary abortLatency;
-    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
-    private final Summary commitLatency;
 
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
+    @Deprecated
+    private final Counter commitFailed;
+
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
+    @Deprecated
+    private final Summary abortLatency;
+
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
+    @Deprecated
+    private final Summary commitLatency;
 
     public static final String PENDING_TRANSACTION_COUNTER = "pulsar.broker.transaction.buffer.client.pending.count";
     private final ObservableLongUpDownCounter pendingTransactionCounter;
 
     @PulsarDeprecatedMetric(newMetricName = PENDING_TRANSACTION_COUNTER)
+    @Deprecated
     private final Gauge pendingRequests;
 
     private final boolean exposeTopicLevelMetrics;
