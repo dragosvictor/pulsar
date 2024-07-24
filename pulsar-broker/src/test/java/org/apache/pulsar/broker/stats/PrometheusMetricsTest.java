@@ -69,7 +69,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.PrometheusMetricsTestUtil;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.authentication.AuthenticationDataSource;
+import org.apache.pulsar.broker.authentication.AuthenticationProvider;
 import org.apache.pulsar.broker.authentication.AuthenticationProviderToken;
+import org.apache.pulsar.broker.authentication.metrics.AuthenticationMetricsToken;
 import org.apache.pulsar.broker.authentication.utils.AuthTokenUtils;
 import org.apache.pulsar.broker.loadbalance.extensions.channel.ServiceUnitStateData;
 import org.apache.pulsar.broker.loadbalance.extensions.manager.UnloadManager;
@@ -104,7 +106,7 @@ public class PrometheusMetricsTest extends BrokerTestBase {
     @Override
     protected void setup() throws Exception {
         super.baseSetup();
-        AuthenticationProviderToken.resetMetrics();
+        AuthenticationMetricsToken.reset();
     }
 
     @Override
@@ -1479,7 +1481,7 @@ public class PrometheusMetricsTest extends BrokerTestBase {
 
         ServiceConfiguration conf = new ServiceConfiguration();
         conf.setProperties(properties);
-        provider.initialize(conf);
+        provider.initialize(AuthenticationProvider.Context.builder().config(conf).build());
 
         try {
             provider.authenticate(new AuthenticationDataSource() {
@@ -1543,7 +1545,7 @@ public class PrometheusMetricsTest extends BrokerTestBase {
 
         ServiceConfiguration conf = new ServiceConfiguration();
         conf.setProperties(properties);
-        provider.initialize(conf);
+        provider.initialize(AuthenticationProvider.Context.builder().config(conf).build());
 
         Date expiredDate = new Date(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1));
         String expiredToken = AuthTokenUtils.createToken(secretKey, "subject", Optional.of(expiredDate));
@@ -1586,7 +1588,7 @@ public class PrometheusMetricsTest extends BrokerTestBase {
 
         ServiceConfiguration conf = new ServiceConfiguration();
         conf.setProperties(properties);
-        provider.initialize(conf);
+        provider.initialize(AuthenticationProvider.Context.builder().config(conf).build());
 
         int[] tokenRemainTime = new int[]{3, 7, 40, 100, 400};
 
