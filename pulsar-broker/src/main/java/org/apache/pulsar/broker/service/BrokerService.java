@@ -21,6 +21,7 @@ package org.apache.pulsar.broker.service;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.bookkeeper.mledger.ManagedLedgerConfig.PROPERTY_SOURCE_TOPIC_KEY;
 import static org.apache.commons.collections4.CollectionUtils.isEmpty;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
@@ -40,6 +41,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.ssl.SslContext;
 import io.netty.util.concurrent.DefaultThreadFactory;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.ObservableLongUpDownCounter;
 import io.prometheus.client.Gauge;
@@ -173,6 +175,7 @@ import org.apache.pulsar.common.policies.data.TopicType;
 import org.apache.pulsar.common.policies.data.stats.TopicStatsImpl;
 import org.apache.pulsar.common.protocol.schema.SchemaVersion;
 import org.apache.pulsar.common.stats.Metrics;
+import org.apache.pulsar.common.stats.MetricsUtil;
 import org.apache.pulsar.common.util.FieldParser;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.GracefulExecutorServicesShutdown;
@@ -207,6 +210,11 @@ public class BrokerService implements Closeable {
     private static final double GRACEFUL_SHUTDOWN_QUIET_PERIOD_RATIO_OF_TOTAL_TIMEOUT = 0.25d;
     private static final double GRACEFUL_SHUTDOWN_TIMEOUT_RATIO_OF_TOTAL_TIMEOUT = 0.5d;
 
+    public static final String BACKLOG_QUOTA_CHECK_DURATION_METRIC_NAME = "pulsar.broker.backlog.quota.check.duration";
+    private final DoubleHistogram backlogQuotaCheckDurationHistogram;
+
+    @Deprecated
+    @PulsarDeprecatedMetric(newMetricName = BACKLOG_QUOTA_CHECK_DURATION_METRIC_NAME)
     private static final Histogram backlogQuotaCheckDuration = Histogram.build()
             .name("pulsar_storage_backlog_quota_check_duration_seconds")
             .help("The duration of the backlog quota check process.")
@@ -393,11 +401,18 @@ public class BrokerService implements Closeable {
                 .name("pulsar-consumed-ledgers-monitor")
                 .numThreads(1)
                 .build();
+
         this.backlogQuotaManager = new BacklogQuotaManager(pulsar);
+        this.backlogQuotaCheckDurationHistogram = pulsar.getOpenTelemetry().getMeter()
+                .histogramBuilder(BACKLOG_QUOTA_CHECK_DURATION_METRIC_NAME)
+                .setDescription("TODO")
+                .setUnit("s")
+                .build();
         this.backlogQuotaChecker = OrderedScheduler.newSchedulerBuilder()
                 .name("pulsar-backlog-quota-checker")
                 .numThreads(1)
                 .build();
+
         this.authenticationService = new AuthenticationService(pulsar.getConfiguration());
         this.blockedDispatchers =
                 ConcurrentOpenHashSet.<PersistentDispatcherMultipleConsumers>newBuilder().build();
@@ -2192,7 +2207,7 @@ public class BrokerService implements Closeable {
     }
 
     public void monitorBacklogQuota() {
-        long startTimeMillis = System.currentTimeMillis();
+        var startTimeNanos = System.nanoTime();
         forEachPersistentTopic(topic -> {
             if (topic.isSizeBacklogExceeded()) {
                 getBacklogQuotaManager().handleExceededBacklogQuota(topic,
@@ -2213,8 +2228,9 @@ public class BrokerService implements Closeable {
                             topic.getName(), throwable);
                     return null;
                 }).whenComplete((unused, throwable) -> {
-                    backlogQuotaCheckDuration.observe(
-                            MILLISECONDS.toSeconds(System.currentTimeMillis() - startTimeMillis));
+                    var durationNanos = System.nanoTime() - startTimeNanos;
+                    backlogQuotaCheckDuration.observe(NANOSECONDS.toSeconds(durationNanos));
+                    backlogQuotaCheckDurationHistogram.record(MetricsUtil.convertToSeconds(durationNanos, NANOSECONDS));
                 });
             }
         });

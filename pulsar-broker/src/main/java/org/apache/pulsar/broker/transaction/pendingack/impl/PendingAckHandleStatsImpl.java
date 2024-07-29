@@ -25,15 +25,28 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
+import org.apache.pulsar.broker.stats.OpenTelemetryTransactionPendingAckStoreStats;
 import org.apache.pulsar.broker.transaction.pendingack.PendingAckHandleAttributes;
 import org.apache.pulsar.broker.transaction.pendingack.PendingAckHandleStats;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.opentelemetry.annotations.PulsarDeprecatedMetric;
 
 public class PendingAckHandleStatsImpl implements PendingAckHandleStats {
     private static final AtomicBoolean INITIALIZED = new AtomicBoolean(false);
+
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTransactionPendingAckStoreStats.ACK_COUNTER)
+    @Deprecated
     private static Counter commitTxnCounter;
+
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTransactionPendingAckStoreStats.ACK_COUNTER)
+    @Deprecated
     private static Counter abortTxnCounter;
+
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTransactionPendingAckStoreStats.OPERATION_LATENCY)
+    @Deprecated
     private static Summary commitTxnLatency;
+
     private static boolean exposeTopicLevelMetrics0;
 
     private final String[] labelSucceed;
@@ -47,14 +60,19 @@ public class PendingAckHandleStatsImpl implements PendingAckHandleStats {
     private final LongAdder commitTxnFailedCounter = new LongAdder();
     private final LongAdder abortTxnSucceedCounter = new LongAdder();
     private final LongAdder abortTxnFailedCounter = new LongAdder();
+    private final PendingAckHandleAttributes namespaceAttributes;
+    private final OpenTelemetryTransactionPendingAckStoreStats openTelemetryStats;
 
     private volatile PendingAckHandleAttributes attributes = null;
     private static final AtomicReferenceFieldUpdater<PendingAckHandleStatsImpl, PendingAckHandleAttributes>
             ATTRIBUTES_UPDATER = AtomicReferenceFieldUpdater.newUpdater(
                     PendingAckHandleStatsImpl.class, PendingAckHandleAttributes.class, "attributes");
 
-    public PendingAckHandleStatsImpl(String topic, String subscription, boolean exposeTopicLevelMetrics) {
+    public PendingAckHandleStatsImpl(PersistentSubscription persistentSubscription, boolean exposeTopicLevelMetrics) {
         initialize(exposeTopicLevelMetrics);
+
+        var topic = persistentSubscription.getTopicName();
+        var subscription = persistentSubscription.getName();
 
         String namespace;
         if (StringUtils.isBlank(topic)) {
@@ -69,6 +87,10 @@ public class PendingAckHandleStatsImpl implements PendingAckHandleStats {
 
         this.topic = topic;
         this.subscription = subscription;
+        this.namespaceAttributes =
+                persistentSubscription.getTopic().getOpenTelemetryNamespaceStats().getPendingAckHandleAttributes();
+        this.openTelemetryStats = persistentSubscription.getTopic().getBrokerService().getPulsar()
+                .getOpenTelemetryTransactionPendingAckStoreStats();
 
         labelSucceed = exposeTopicLevelMetrics0
                 ? new String[]{namespace, topic, subscription, "succeed"} : new String[]{namespace, "succeed"};
@@ -86,19 +108,27 @@ public class PendingAckHandleStatsImpl implements PendingAckHandleStats {
             labels = labelSucceed;
             counter = commitTxnSucceedCounter;
             commitTxnLatency.labels(commitLatencyLabel).observe(TimeUnit.NANOSECONDS.toMicros(nanos));
+            openTelemetryStats.recordOperationLatency(nanos, namespaceAttributes.getCommitSuccessAttributes());
         } else {
             labels = labelFailed;
             counter = commitTxnFailedCounter;
+            openTelemetryStats.recordOperationLatency(nanos, namespaceAttributes.getCommitFailureAttributes());
         }
         commitTxnCounter.labels(labels).inc();
         counter.increment();
     }
 
     @Override
-    public void recordAbortTxn(boolean success) {
-        abortTxnCounter.labels(success ? labelSucceed : labelFailed).inc();
-        var counter = success ? abortTxnSucceedCounter : abortTxnFailedCounter;
-        counter.increment();
+    public void recordAbortTxn(boolean success, long nanos) {
+        if (success) {
+            abortTxnCounter.labels(labelSucceed).inc();
+            abortTxnSucceedCounter.increment();
+            openTelemetryStats.recordOperationLatency(nanos, namespaceAttributes.getAbortSuccessAttributes());
+        } else {
+            abortTxnCounter.labels(labelFailed).inc();
+            abortTxnFailedCounter.increment();
+            openTelemetryStats.recordOperationLatency(nanos, namespaceAttributes.getAbortFailureAttributes());
+        }
     }
 
     @Override

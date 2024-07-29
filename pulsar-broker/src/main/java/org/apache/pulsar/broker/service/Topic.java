@@ -30,6 +30,7 @@ import org.apache.pulsar.broker.service.persistent.SubscribeRateLimiter;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.stats.ClusterReplicationMetrics;
 import org.apache.pulsar.broker.stats.NamespaceStats;
+import org.apache.pulsar.broker.stats.OpenTelemetryNamespaceStats;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.transaction.TxnID;
 import org.apache.pulsar.common.api.proto.CommandSubscribe.InitialPosition;
@@ -389,4 +390,10 @@ public interface Topic {
      * @return
      */
     TopicAttributes getTopicAttributes();
+
+    /**
+     * Retrieve the namespace stats object associated to this topic.
+     * @return
+     */
+    OpenTelemetryNamespaceStats getOpenTelemetryNamespaceStats();
 }

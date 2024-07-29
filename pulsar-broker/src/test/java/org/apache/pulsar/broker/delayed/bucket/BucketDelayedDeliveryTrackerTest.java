@@ -30,6 +30,7 @@ import static org.testng.AssertJUnit.assertFalse;
 import io.netty.util.Timeout;
 import io.netty.util.Timer;
 import io.netty.util.TimerTask;
+import io.opentelemetry.api.OpenTelemetry;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.time.Clock;
@@ -52,7 +53,9 @@ import org.apache.pulsar.broker.delayed.AbstractDeliveryTrackerTest;
 import org.apache.pulsar.broker.delayed.MockBucketSnapshotStorage;
 import org.apache.pulsar.broker.delayed.MockManagedCursor;
 import org.apache.pulsar.broker.service.persistent.PersistentDispatcherMultipleConsumers;
+import org.apache.pulsar.opentelemetry.Constants;
 import org.awaitility.Awaitility;
+import org.mockito.Answers;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.testng.Assert;
@@ -74,10 +77,13 @@ public class BucketDelayedDeliveryTrackerTest extends AbstractDeliveryTrackerTes
 
     @DataProvider(name = "delayedTracker")
     public Object[][] provider(Method method) throws Exception {
-        dispatcher = mock(PersistentDispatcherMultipleConsumers.class);
+        dispatcher = mock(PersistentDispatcherMultipleConsumers.class, Answers.RETURNS_DEEP_STUBS);
         clock = mock(Clock.class);
         clockTime = new AtomicLong();
         when(clock.millis()).then(x -> clockTime.get());
+
+        when(dispatcher.getTopic().getBrokerService().getPulsar().getOpenTelemetry().getMeter())
+                .thenReturn(OpenTelemetry.noop().getMeter(Constants.BROKER_INSTRUMENTATION_SCOPE_NAME));
 
         bucketSnapshotStorage = new MockBucketSnapshotStorage();
         bucketSnapshotStorage.start();

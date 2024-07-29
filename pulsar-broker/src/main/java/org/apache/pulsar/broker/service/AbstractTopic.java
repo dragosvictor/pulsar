@@ -62,6 +62,7 @@ import org.apache.pulsar.broker.service.BrokerServiceException.TopicTerminatedEx
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.schema.SchemaRegistryService;
 import org.apache.pulsar.broker.service.schema.exceptions.IncompatibleSchemaException;
+import org.apache.pulsar.broker.stats.OpenTelemetryNamespaceStats;
 import org.apache.pulsar.broker.stats.prometheus.metrics.Summary;
 import org.apache.pulsar.common.api.proto.CommandSubscribe.SubType;
 import org.apache.pulsar.common.naming.NamespaceName;
@@ -83,6 +84,7 @@ import org.apache.pulsar.common.policies.data.impl.DispatchRateImpl;
 import org.apache.pulsar.common.protocol.schema.SchemaData;
 import org.apache.pulsar.common.protocol.schema.SchemaVersion;
 import org.apache.pulsar.common.util.FutureUtil;
+import org.apache.pulsar.opentelemetry.annotations.PulsarDeprecatedMetric;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -167,6 +169,9 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
 
     protected Set<String> additionalSystemCursorNames = new TreeSet<>();
 
+    @Getter
+    private final OpenTelemetryNamespaceStats openTelemetryNamespaceStats;
+
     public AbstractTopic(String topic, BrokerService brokerService) {
         this.topic = topic;
         this.brokerService = brokerService;
@@ -184,6 +189,8 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
         updateActiveRateLimiters();
 
         additionalSystemCursorNames = brokerService.pulsar().getConfiguration().getAdditionalSystemCursorNames();
+        var namespaceName = TopicName.get(topic).getNamespaceObject();
+        openTelemetryNamespaceStats = brokerService.getPulsar().getOpenTelemetryNamespaceStats(namespaceName);
     }
 
     public SubscribeRate getSubscribeRate() {
@@ -914,6 +921,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
         addEntryLatencyStatsUsec.addValue(unit.toMicros(latency));
 
         PUBLISH_LATENCY.observe(latency, unit);
+        openTelemetryNamespaceStats.recordAddLatency(latency, unit);
     }
 
     @Override
@@ -922,6 +930,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
         return RATE_LIMITED_UPDATER.incrementAndGet(this);
     }
 
+    @PulsarDeprecatedMetric(newMetricName = OpenTelemetryNamespaceStats.PUBLISH_DURATION_METRIC_NAME)
     private static final Summary PUBLISH_LATENCY = Summary.build("pulsar_broker_publish_latency", "-")
             .quantile(0.0)
             .quantile(0.50)

@@ -26,7 +26,6 @@ import io.prometheus.client.Summary;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.LongAdder;
 import lombok.NonNull;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.service.BrokerService;
@@ -43,18 +42,26 @@ public final class TransactionBufferClientStatsImpl implements TransactionBuffer
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
+    @Deprecated
     private final Counter abortFailed;
+
     @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
+    @Deprecated
     private final Counter commitFailed;
+
     @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
+    @Deprecated
     private final Summary abortLatency;
+
     @PulsarDeprecatedMetric(newMetricName = OpenTelemetryTopicStats.TRANSACTION_BUFFER_CLIENT_OPERATION_COUNTER)
+    @Deprecated
     private final Summary commitLatency;
 
     public static final String PENDING_TRANSACTION_COUNTER = "pulsar.broker.transaction.buffer.client.pending.count";
     private final ObservableLongUpDownCounter pendingTransactionCounter;
 
     @PulsarDeprecatedMetric(newMetricName = PENDING_TRANSACTION_COUNTER)
+    @Deprecated
     private final Gauge pendingRequests;
 
     private final boolean exposeTopicLevelMetrics;
@@ -116,35 +123,27 @@ public final class TransactionBufferClientStatsImpl implements TransactionBuffer
     }
 
     @Override
-    public void recordAbortFailed(String topic) {
+    public void recordAbortFailed(String topic, long nanos) {
         this.abortFailed.labels(labelValues(topic)).inc();
-        getTransactionBufferClientMetrics(topic)
-                .map(PersistentTopicMetrics.TransactionBufferClientMetrics::getAbortFailedCount)
-                .ifPresent(LongAdder::increment);
+        getTransactionBufferClientMetrics(topic).ifPresent(metrics -> metrics.recordAbortFailed(nanos));
     }
 
     @Override
-    public void recordCommitFailed(String topic) {
+    public void recordCommitFailed(String topic, long nanos) {
         this.commitFailed.labels(labelValues(topic)).inc();
-        getTransactionBufferClientMetrics(topic)
-                .map(PersistentTopicMetrics.TransactionBufferClientMetrics::getCommitFailedCount)
-                .ifPresent(LongAdder::increment);
+        getTransactionBufferClientMetrics(topic).ifPresent(metrics -> metrics.recordCommitFailed(nanos));
     }
 
     @Override
     public void recordAbortLatency(String topic, long nanos) {
         this.abortLatency.labels(labelValues(topic)).observe(nanos);
-        getTransactionBufferClientMetrics(topic)
-                .map(PersistentTopicMetrics.TransactionBufferClientMetrics::getAbortSucceededCount)
-                .ifPresent(LongAdder::increment);
+        getTransactionBufferClientMetrics(topic).ifPresent(metrics -> metrics.recordAbortSucceeded(nanos));
     }
 
     @Override
     public void recordCommitLatency(String topic, long nanos) {
         this.commitLatency.labels(labelValues(topic)).observe(nanos);
-        getTransactionBufferClientMetrics(topic)
-                .map(PersistentTopicMetrics.TransactionBufferClientMetrics::getCommitSucceededCount)
-                .ifPresent(LongAdder::increment);
+        getTransactionBufferClientMetrics(topic).ifPresent(metrics -> metrics.recordCommitSucceeded(nanos));
     }
 
     private Optional<PersistentTopicMetrics.TransactionBufferClientMetrics> getTransactionBufferClientMetrics(

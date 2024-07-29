@@ -20,13 +20,18 @@ package org.apache.pulsar.broker.service.persistent;
 
 import java.util.concurrent.atomic.LongAdder;
 import lombok.Getter;
+import org.apache.pulsar.broker.stats.OpenTelemetryNamespaceStats;
 
 @Getter
 public class PersistentTopicMetrics {
 
+    private final OpenTelemetryNamespaceStats namespaceStats;
     private final BacklogQuotaMetrics backlogQuotaMetrics = new BacklogQuotaMetrics();
-
     private final TransactionBufferClientMetrics transactionBufferClientMetrics = new TransactionBufferClientMetrics();
+
+    public PersistentTopicMetrics(OpenTelemetryNamespaceStats namespaceStats) {
+        this.namespaceStats = namespaceStats;
+    }
 
     public static class BacklogQuotaMetrics {
         private final LongAdder timeBasedBacklogQuotaExceededEvictionCount = new LongAdder();
@@ -50,11 +55,27 @@ public class PersistentTopicMetrics {
     }
 
     @Getter
-    public static class TransactionBufferClientMetrics {
+    public class TransactionBufferClientMetrics {
         private final LongAdder commitSucceededCount = new LongAdder();
         private final LongAdder commitFailedCount = new LongAdder();
 
         private final LongAdder abortSucceededCount = new LongAdder();
         private final LongAdder abortFailedCount = new LongAdder();
+
+        public void recordCommitSucceeded(long durationNs) {
+            commitSucceededCount.increment();
+        }
+
+        public void recordCommitFailed(long durationNs) {
+            commitFailedCount.increment();
+        }
+
+        public void recordAbortSucceeded(long durationNs) {
+            abortSucceededCount.increment();
+        }
+
+        public void recordAbortFailed(long durationNs) {
+            abortFailedCount.increment();
+        }
     }
 }

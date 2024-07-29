@@ -18,6 +18,7 @@
  */
 package org.apache.pulsar.broker.stats;
 
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.ObservableLongCounter;
 import io.prometheus.client.Counter;
 import java.util.ArrayList;
@@ -28,8 +29,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.common.stats.Metrics;
+import org.apache.pulsar.common.stats.MetricsUtil;
 import org.apache.pulsar.opentelemetry.OpenTelemetryAttributes.ConnectionCreateStatus;
 import org.apache.pulsar.opentelemetry.OpenTelemetryAttributes.ConnectionStatus;
+import org.apache.pulsar.opentelemetry.annotations.PulsarDeprecatedMetric;
 
 /**
  */
@@ -37,6 +40,11 @@ public class BrokerOperabilityMetrics implements AutoCloseable {
     private static final Counter TOPIC_LOAD_FAILED = Counter.build("topic_load_failed", "-").register();
     private final List<Metrics> metricsList;
     private final String localCluster;
+
+    public static final String TOPIC_LOAD_DURATION_METRIC_NAME = "pulsar.broker.topic.load.duration";
+    private final DoubleHistogram topicLoadDuration;
+
+    @PulsarDeprecatedMetric(newMetricName = TOPIC_LOAD_DURATION_METRIC_NAME)
     private final DimensionStats topicLoadStats;
     private final String brokerName;
     private final LongAdder connectionTotalCreatedCount;
@@ -86,6 +94,12 @@ public class BrokerOperabilityMetrics implements AutoCloseable {
                     measurement.record(connectionCreateSuccessCount.sum(), ConnectionCreateStatus.SUCCESS.attributes);
                     measurement.record(connectionCreateFailCount.sum(), ConnectionCreateStatus.FAILURE.attributes);
                 });
+
+        topicLoadDuration = pulsar.getOpenTelemetry().getMeter()
+                .histogramBuilder(TOPIC_LOAD_DURATION_METRIC_NAME)
+                .setDescription("The time taken to load a topic.")
+                .setUnit("s")
+                .build();
     }
 
     @Override
@@ -156,6 +170,7 @@ public class BrokerOperabilityMetrics implements AutoCloseable {
 
     public void recordTopicLoadTimeValue(long topicLoadLatencyMs) {
         topicLoadStats.recordDimensionTimeValue(topicLoadLatencyMs, TimeUnit.MILLISECONDS);
+        topicLoadDuration.record(MetricsUtil.convertToSeconds(topicLoadLatencyMs, TimeUnit.MILLISECONDS));
     }
 
     public void recordTopicLoadFailed() {

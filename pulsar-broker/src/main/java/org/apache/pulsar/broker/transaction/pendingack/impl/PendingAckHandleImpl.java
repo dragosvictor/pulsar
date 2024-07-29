@@ -157,8 +157,8 @@ public class PendingAckHandleImpl extends PendingAckHandleState implements Pendi
         var pulsar = persistentSubscription.getTopic().getBrokerService().getPulsar();
         internalPinnedExecutor = pulsar.getTransactionExecutorProvider().getExecutor(this);
 
-        this.handleStats = PendingAckHandleStats.create(
-                topicName, subName, pulsar.getConfig().isExposeTopicLevelMetricsInPrometheus());
+        this.handleStats = new PendingAckHandleStatsImpl(persistentSubscription,
+                pulsar.getConfig().isExposeTopicLevelMetricsInPrometheus());
 
         this.pendingAckStoreProvider = pulsar.getTransactionPendingAckStoreProvider();
         transactionOpTimer = pulsar.getTransactionTimer();
@@ -548,8 +548,8 @@ public class PendingAckHandleImpl extends PendingAckHandleState implements Pendi
         acceptQueue.add(() -> internalAbortTxn(txnId, consumer, lowWaterMark, completableFuture));
     }
 
-    public CompletableFuture<Void> internalAbortTxn(TxnID txnId, Consumer consumer,
-                                 long lowWaterMark, CompletableFuture<Void> abortFuture) {
+    private CompletableFuture<Void> internalAbortTxn(TxnID txnId, Consumer consumer, long lowWaterMark,
+                                                     CompletableFuture<Void> abortFuture) {
         if (this.cumulativeAckOfTransaction != null) {
             pendingAckStoreFuture.thenAccept(pendingAckStore ->
                     pendingAckStore.appendAbortMark(txnId, AckType.Cumulative).thenAccept(v -> {
@@ -608,11 +608,12 @@ public class PendingAckHandleImpl extends PendingAckHandleState implements Pendi
         } else {
             abortFuture.complete(null);
         }
-        return abortFuture.whenComplete((__, t) -> this.handleStats.recordAbortTxn(t == null));
+        return abortFuture;
     }
 
     @Override
     public CompletableFuture<Void> abortTxn(TxnID txnId, Consumer consumer, long lowWaterMark) {
+        var start = System.nanoTime();
         CompletableFuture<Void> abortFuture = new CompletableFuture<>();
         internalPinnedExecutor.execute(() -> {
             if (!checkIfReady()) {
@@ -637,7 +638,7 @@ public class PendingAckHandleImpl extends PendingAckHandleState implements Pendi
             }
             internalAbortTxn(txnId, consumer, lowWaterMark, abortFuture);
         });
-        return abortFuture;
+        return abortFuture.whenComplete((__, t) -> handleStats.recordAbortTxn(t == null, System.nanoTime() - start));
     }
 
     private void handleLowWaterMark(TxnID txnID, long lowWaterMark) {

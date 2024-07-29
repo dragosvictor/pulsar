@@ -24,9 +24,9 @@ import org.apache.pulsar.client.impl.transaction.TransactionBufferHandler;
 
 public interface TransactionBufferClientStats {
 
-    void recordAbortFailed(String topic);
+    void recordAbortFailed(String topic, long nanos);
 
-    void recordCommitFailed(String topic);
+    void recordCommitFailed(String topic, long nanos);
 
     void recordAbortLatency(String topic, long nanos);
 
@@ -44,12 +44,12 @@ public interface TransactionBufferClientStats {
 
     TransactionBufferClientStats NOOP = new TransactionBufferClientStats() {
         @Override
-        public void recordAbortFailed(String topic) {
+        public void recordAbortFailed(String topic, long nanos) {
 
         }
 
         @Override
-        public void recordCommitFailed(String topic) {
+        public void recordCommitFailed(String topic, long nanos) {
 
         }
 

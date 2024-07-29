@@ -20,6 +20,7 @@ package org.apache.pulsar.broker.transaction.pendingack;
 
 import io.opentelemetry.api.common.Attributes;
 import lombok.Getter;
+import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.opentelemetry.OpenTelemetryAttributes;
 import org.apache.pulsar.opentelemetry.OpenTelemetryAttributes.TransactionPendingAckOperationStatus;
@@ -33,21 +34,32 @@ public class PendingAckHandleAttributes {
     private final Attributes abortSuccessAttributes;
     private final Attributes abortFailureAttributes;
 
-    public PendingAckHandleAttributes(String topic, String subscription) {
-        var topicName = TopicName.get(topic);
-        commitSuccessAttributes = getAttributes(topicName, subscription, TransactionStatus.COMMITTED,
-                TransactionPendingAckOperationStatus.SUCCESS);
-        commitFailureAttributes = getAttributes(topicName, subscription, TransactionStatus.COMMITTED,
-                TransactionPendingAckOperationStatus.FAILURE);
-        abortSuccessAttributes = getAttributes(topicName, subscription, TransactionStatus.ABORTED,
-                TransactionPendingAckOperationStatus.SUCCESS);
-        abortFailureAttributes = getAttributes(topicName, subscription, TransactionStatus.ABORTED,
-                TransactionPendingAckOperationStatus.FAILURE);
+    public PendingAckHandleAttributes(NamespaceName namespace) {
+        commitSuccessAttributes = getNamespaceAttributes(namespace,
+                TransactionStatus.COMMITTED, TransactionPendingAckOperationStatus.SUCCESS);
+        commitFailureAttributes = getNamespaceAttributes(namespace,
+                TransactionStatus.COMMITTED, TransactionPendingAckOperationStatus.FAILURE);
+        abortSuccessAttributes = getNamespaceAttributes(namespace,
+                TransactionStatus.ABORTED, TransactionPendingAckOperationStatus.SUCCESS);
+        abortFailureAttributes = getNamespaceAttributes(namespace,
+                TransactionStatus.ABORTED, TransactionPendingAckOperationStatus.FAILURE);
     }
 
-    private static Attributes getAttributes(TopicName topicName, String subscriptionName,
-                                            TransactionStatus txStatus,
-                                            TransactionPendingAckOperationStatus txAckStoreStatus) {
+    public PendingAckHandleAttributes(String topic, String subscription) {
+        var topicName = TopicName.get(topic);
+        commitSuccessAttributes = getTopicSubscriptionAttributes(topicName, subscription,
+                TransactionStatus.COMMITTED, TransactionPendingAckOperationStatus.SUCCESS);
+        commitFailureAttributes = getTopicSubscriptionAttributes(topicName, subscription,
+                TransactionStatus.COMMITTED, TransactionPendingAckOperationStatus.FAILURE);
+        abortSuccessAttributes = getTopicSubscriptionAttributes(topicName, subscription,
+                TransactionStatus.ABORTED, TransactionPendingAckOperationStatus.SUCCESS);
+        abortFailureAttributes = getTopicSubscriptionAttributes(topicName, subscription,
+                TransactionStatus.ABORTED, TransactionPendingAckOperationStatus.FAILURE);
+    }
+
+    private static Attributes getTopicSubscriptionAttributes(TopicName topicName, String subscriptionName,
+                                                             TransactionStatus txStatus,
+                                                             TransactionPendingAckOperationStatus txAckStoreStatus) {
         var builder = Attributes.builder()
                 .put(OpenTelemetryAttributes.PULSAR_SUBSCRIPTION_NAME, subscriptionName)
                 .put(OpenTelemetryAttributes.PULSAR_TENANT, topicName.getTenant())
@@ -59,5 +71,15 @@ public class PendingAckHandleAttributes {
             builder.put(OpenTelemetryAttributes.PULSAR_PARTITION_INDEX, topicName.getPartitionIndex());
         }
         return builder.build();
+    }
+
+    private static Attributes getNamespaceAttributes(NamespaceName namespace, TransactionStatus txStatus,
+                                                     TransactionPendingAckOperationStatus txAckStoreStatus) {
+        return Attributes.builder()
+                .put(OpenTelemetryAttributes.PULSAR_TENANT, namespace.getTenant())
+                .put(OpenTelemetryAttributes.PULSAR_NAMESPACE, namespace.getLocalName())
+                .putAll(txStatus.attributes)
+                .putAll(txAckStoreStatus.attributes)
+                .build();
     }
 }
