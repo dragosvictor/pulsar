@@ -18,14 +18,21 @@
  */
 package org.apache.pulsar.broker.delayed.bucket;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.bookkeeper.mledger.util.StatsBuckets;
+import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.common.policies.data.stats.TopicMetricBean;
+import org.apache.pulsar.common.stats.MetricsUtil;
+import org.apache.pulsar.opentelemetry.annotations.PulsarDeprecatedMetric;
 
 public class BucketDelayedMessageIndexStats {
 
@@ -37,11 +44,13 @@ public class BucketDelayedMessageIndexStats {
         all
     }
 
+    public static final AttributeKey<String> OPERATION_TYPE = AttributeKey.stringKey("operation");
     enum Type {
         create,
         load,
         delete,
-        merge
+        merge;
+        public final Attributes attributes = Attributes.of(OPERATION_TYPE, name().toLowerCase());
     }
 
     private static final String BUCKET_TOTAL_NAME = "pulsar_delayed_message_index_bucket_total";
@@ -53,10 +62,20 @@ public class BucketDelayedMessageIndexStats {
     private final AtomicInteger delayedMessageIndexBucketTotal = new AtomicInteger();
     private final AtomicLong delayedMessageIndexLoaded = new AtomicLong();
     private final AtomicLong delayedMessageIndexBucketSnapshotSizeBytes = new AtomicLong();
+
+    public static final String DELAYED_MESSAGE_INDEX_BUCKET_OP_DURATION = "pulsar.broker.delayed.bucket.op.duration";
+    private final DoubleHistogram delayedMessageIndexBucketOpLatencyHistogram;
+    @Deprecated
+    @PulsarDeprecatedMetric(newMetricName = DELAYED_MESSAGE_INDEX_BUCKET_OP_DURATION)
     private final Map<String, StatsBuckets> delayedMessageIndexBucketOpLatencyMs = new ConcurrentHashMap<>();
     private final Map<String, LongAdder> delayedMessageIndexBucketOpCount = new ConcurrentHashMap<>();
 
-    public BucketDelayedMessageIndexStats() {
+    public BucketDelayedMessageIndexStats(PulsarService pulsar) {
+        delayedMessageIndexBucketOpLatencyHistogram = pulsar.getOpenTelemetry().getMeter()
+                .histogramBuilder(DELAYED_MESSAGE_INDEX_BUCKET_OP_DURATION)
+                .setDescription("TODO")
+                .setUnit("s")
+                .build();
     }
 
     public Map<String, TopicMetricBean> genTopicMetricMap() {
@@ -124,11 +143,13 @@ public class BucketDelayedMessageIndexStats {
                 k -> new LongAdder()).increment();
     }
 
-    public void recordSuccessEvent(Type eventType, long cost) {
+    public void recordSuccessEvent(Type eventType, long durationMs) {
         delayedMessageIndexBucketOpCount.computeIfAbsent(joinKey(State.succeed.name(), eventType.name()),
                 k -> new LongAdder()).increment();
         delayedMessageIndexBucketOpLatencyMs.computeIfAbsent(eventType.name(),
-                k -> new StatsBuckets(BUCKETS)).addValue(cost);
+                k -> new StatsBuckets(BUCKETS)).addValue(durationMs);
+        delayedMessageIndexBucketOpLatencyHistogram
+                .record(MetricsUtil.convertToSeconds(durationMs, TimeUnit.MILLISECONDS), eventType.attributes);
     }
 
     public void recordFailEvent(Type eventType) {

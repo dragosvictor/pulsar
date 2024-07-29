@@ -135,7 +135,7 @@ public class BucketDelayedDeliveryTracker extends AbstractDelayedDeliveryTracker
         this.lastMutableBucket =
                 new MutableBucket(dispatcher.getName(), dispatcher.getCursor(), FutureUtil.Sequencer.create(),
                         bucketSnapshotStorage);
-        this.stats = new BucketDelayedMessageIndexStats();
+        this.stats = new BucketDelayedMessageIndexStats(dispatcher.getTopic().getBrokerService().getPulsar());
 
         // Close the tracker if failed to recover.
         try {
