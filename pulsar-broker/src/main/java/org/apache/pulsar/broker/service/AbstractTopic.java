@@ -493,8 +493,18 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
         return new PublishRate(config.getMaxPublishRatePerTopicInMessages(), config.getMaxPublishRatePerTopicInBytes());
     }
 
+    public boolean isProducersExceeded(String producerName) {
+        String replicatorPrefix = brokerService.getPulsar().getConfig().getReplicatorPrefix() + ".";
+        boolean isRemote = producerName.startsWith(replicatorPrefix);
+        return isProducersExceeded(isRemote);
+    }
+
     protected boolean isProducersExceeded(Producer producer) {
-        if (isSystemTopic() || producer.isRemote()) {
+        return isProducersExceeded(producer.isRemote());
+    }
+
+    protected boolean isProducersExceeded(boolean isRemote) {
+        if (isSystemTopic() || isRemote) {
             return false;
         }
         Integer maxProducers = topicPolicies.getMaxProducersPerTopic().get();
@@ -543,7 +553,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
         return count;
     }
 
-    protected boolean isConsumersExceededOnTopic() {
+    public boolean isConsumersExceededOnTopic() {
         if (isSystemTopic()) {
             return false;
         }
@@ -982,12 +992,6 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
     }
 
     protected CompletableFuture<Void> internalAddProducer(Producer producer) {
-        if (isProducersExceeded(producer)) {
-            log.warn("[{}] Attempting to add producer to topic which reached max producers limit", topic);
-            return CompletableFuture.failedFuture(new BrokerServiceException.ProducerBusyException(
-                    "Topic '" + topic + "' reached max producers limit"));
-        }
-
         if (isSameAddressProducersExceeded(producer)) {
             log.warn("[{}] Attempting to add producer to topic which reached max same address producers limit", topic);
             return CompletableFuture.failedFuture(new BrokerServiceException.ProducerBusyException(
